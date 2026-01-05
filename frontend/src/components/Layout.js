@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Warehouse,
   FileText,
+  Upload,
   LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
