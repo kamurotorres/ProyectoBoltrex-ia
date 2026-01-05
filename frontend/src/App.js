@@ -97,6 +97,9 @@ function App() {
             <Route path="products" element={<Products />} />
             <Route path="categories" element={<Categories />} />
             <Route path="clients" element={<Clients />} />
+            <Route path="suppliers" element={<Suppliers />} />
+            <Route path="purchases" element={<Purchases />} />
+            <Route path="returns" element={<Returns />} />
             <Route path="pos" element={<POS />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="reports" element={<Reports />} />
