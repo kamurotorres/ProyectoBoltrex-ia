@@ -36,7 +36,8 @@ const Layout = () => {
     { path: '/returns', icon: RotateCcw, label: 'Devoluciones' },
     { path: '/pos', icon: ShoppingCart, label: 'POS' },
     { path: '/inventory', icon: Warehouse, label: 'Inventario' },
-    { path: '/reports', icon: FileText, label: 'Reportes' }
+    { path: '/reports', icon: FileText, label: 'Reportes' },
+    { path: '/import', icon: Upload, label: 'Importar' }
   ];
 
   return (
