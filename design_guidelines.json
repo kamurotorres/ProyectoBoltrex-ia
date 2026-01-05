@@ -1,0 +1,135 @@
+{
+  "brand_identity": {
+    "name": "Boltrex",
+    "mission": "To provide a robust, high-speed inventory and sales management system for modern businesses.",
+    "tone": "Serious, Efficient, High-Tech, Minimalist",
+    "archetype": "The Dark Knight of POS Systems",
+    "keywords": ["Speed", "Precision", "Control", "Dark Mode", "Minimalist"]
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Outfit, sans-serif",
+      "weights": ["400", "600", "800"],
+      "usage": "Use for all page titles, section headers, and modal titles. Tracking-tight is mandatory for sizes > 24px."
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for all standard UI text, labels, and descriptions."
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace",
+      "weights": ["400", "500"],
+      "usage": "MANDATORY for all prices, inventory counts, SKUs, and tabular data."
+    }
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": "#09090b",
+      "foreground": "#fafafa",
+      "card": "#18181b",
+      "card_foreground": "#fafafa",
+      "popover": "#09090b",
+      "popover_foreground": "#fafafa",
+      "primary": "#fafafa",
+      "primary_foreground": "#18181b",
+      "secondary": "#27272a",
+      "secondary_foreground": "#fafafa",
+      "muted": "#27272a",
+      "muted_foreground": "#a1a1aa",
+      "accent": "#27272a",
+      "accent_foreground": "#fafafa",
+      "destructive": "#7f1d1d",
+      "destructive_foreground": "#fafafa",
+      "border": "#27272a",
+      "input": "#27272a",
+      "ring": "#d4d4d8"
+    },
+    "chart_colors": {
+      "chart_1": "#22c55e",
+      "chart_2": "#3b82f6",
+      "chart_3": "#eab308",
+      "chart_4": "#ef4444",
+      "chart_5": "#a855f7"
+    },
+    "rules": [
+      "Never use gradients for backgrounds.",
+      "Use 1px borders (border-white/10) to define structure instead of heavy shadows.",
+      "Active states should use a subtle glow or high-contrast white border."
+    ]
+  },
+  "layout": {
+    "spacing_scale": "Generous (p-6, p-8, p-12)",
+    "grid_system": {
+      "dashboard": "Control Room Grid: grid-cols-1 md:grid-cols-4 gap-4. Dense data, no wasted space.",
+      "marketing_login": "Tetris Grid: grid-cols-12 gap-8. Asymmetrical and artistic.",
+      "pos": "Split View: Left 60% (Product Grid), Right 40% (Cart/Checkout)."
+    },
+    "container_rules": [
+      "Dashboard cards must have p-6 padding.",
+      "Tables must be dense but legible.",
+      "Sidebar must be fixed width (240px) and collapsible."
+    ]
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or slightly rounded (rounded-md).",
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "ghost": "hover:bg-accent hover:text-accent-foreground"
+    },
+    "cards": {
+      "style": "Flat, 1px border (border-border), bg-card.",
+      "hover": "hover:border-primary/50 transition-colors duration-300"
+    },
+    "inputs": {
+      "style": "bg-input border-transparent focus:border-primary focus:ring-1 focus:ring-primary rounded-md h-10"
+    },
+    "tables": {
+      "style": "Simple, no vertical borders. Header text-muted-foreground uppercase text-xs tracking-wider."
+    },
+    "modals": {
+      "style": "Backdrop-blur-sm bg-background/80 border border-border shadow-2xl"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "Use backdrop-blur-xl bg-black/40 for sticky headers and sidebars.",
+    "texture": "Add a subtle noise texture to the main background to prevent banding in dark mode.",
+    "borders": "Use 'Tracing Beam' effect for active cards or high-priority alerts."
+  },
+  "motion": {
+    "transitions": "transition-all duration-200 ease-out",
+    "hover_effects": "Subtle lift (-1px) and border highlight.",
+    "page_transitions": "Fade in + Slide up (10px)."
+  },
+  "images": {
+    "login_background": {
+      "url": "https://images.unsplash.com/photo-1601277743437-2b4cf99aab99?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBkYXJrJTIwd2FyZWhvdXNlJTIwYWJzdHJhY3QlMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc2NzYzMDYzMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern Dark Warehouse Abstract",
+      "usage": "Full screen background for Login/Register pages with overlay bg-black/60."
+    },
+    "placeholders": {
+      "product": "https://placehold.co/400x400/18181b/fafafa?text=Product",
+      "user": "https://placehold.co/100x100/18181b/fafafa?text=User"
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 1.5px for a refined, technical look."
+  },
+  "accessibility": {
+    "contrast": "Ensure all text meets WCAG AA standards (4.5:1).",
+    "focus_states": "Visible ring-2 ring-primary ring-offset-2 ring-offset-background.",
+    "testing": "All interactive elements must have data-testid attributes."
+  },
+  "universal_guidelines": [
+    "Do not use gradients for text.",
+    "Do not use 'Inter' font for headings.",
+    "Do not use generic 'blue' for primary actions; use the defined monochrome palette.",
+    "Ensure all charts have tooltips and legends.",
+    "Use 'Sonner' for toast notifications.",
+    "Use 'Shadcn' components for all interactive elements (dropdowns, dialogs, etc.)."
+  ],
+  "instructions_to_main_agent": "Follow these guidelines strictly. Use the provided image URLs. Implement the 'Control Room' grid for the dashboard. Ensure the 'Dark Mode' is consistent and high-contrast. Use 'JetBrains Mono' for all numerical data."
+}
