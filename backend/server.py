@@ -875,6 +875,269 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
         "low_stock_products": low_stock
     }
 
+# ==================== IMPORT ENDPOINTS ====================
+
+class ImportResult(BaseModel):
+    success: int
+    errors: List[Dict[str, Any]]
+    total: int
+
+def read_file(file: UploadFile) -> pd.DataFrame:
+    """Read CSV or Excel file and return DataFrame"""
+    try:
+        if file.filename.endswith('.csv'):
+            content = file.file.read()
+            df = pd.read_csv(io.BytesIO(content))
+        elif file.filename.endswith(('.xlsx', '.xls')):
+            content = file.file.read()
+            df = pd.read_excel(io.BytesIO(content))
+        else:
+            raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel")
+        return df
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al leer archivo: {str(e)}")
+
+@api_router.post("/import/categories", response_model=ImportResult)
+async def import_categories(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """
+    Importar categorías desde CSV o Excel
+    Columnas requeridas: name, description
+    """
+    df = read_file(file)
+    
+    required_columns = ['name']
+    if not all(col in df.columns for col in required_columns):
+        raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
+    
+    success_count = 0
+    errors = []
+    
+    for index, row in df.iterrows():
+        try:
+            # Check if category already exists
+            existing = await db.categories.find_one({"name": str(row['name'])})
+            if existing:
+                errors.append({"row": index + 2, "error": f"Categoría '{row['name']}' ya existe"})
+                continue
+            
+            category_data = {
+                "name": str(row['name']),
+                "description": str(row.get('description', '')) if pd.notna(row.get('description')) else '',
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.categories.insert_one(category_data)
+            success_count += 1
+        except Exception as e:
+            errors.append({"row": index + 2, "error": str(e)})
+    
+    return ImportResult(success=success_count, errors=errors, total=len(df))
+
+@api_router.post("/import/products", response_model=ImportResult)
+async def import_products(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """
+    Importar productos desde CSV o Excel
+    Columnas requeridas: barcode, name, category, purchase_price, tax_rate
+    Columnas opcionales: description, price_default, price_mayorista, price_minorista
+    """
+    df = read_file(file)
+    
+    required_columns = ['barcode', 'name', 'category', 'purchase_price', 'tax_rate']
+    if not all(col in df.columns for col in required_columns):
+        raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
+    
+    success_count = 0
+    errors = []
+    
+    for index, row in df.iterrows():
+        try:
+            # Check if product already exists
+            existing = await db.products.find_one({"barcode": str(row['barcode'])})
+            if existing:
+                errors.append({"row": index + 2, "error": f"Producto con código '{row['barcode']}' ya existe"})
+                continue
+            
+            # Check if category exists
+            category_exists = await db.categories.find_one({"name": str(row['category'])})
+            if not category_exists:
+                errors.append({"row": index + 2, "error": f"Categoría '{row['category']}' no existe"})
+                continue
+            
+            # Build prices array
+            prices = []
+            for price_col in ['price_default', 'price_mayorista', 'price_minorista']:
+                if price_col in df.columns and pd.notna(row.get(price_col)):
+                    price_list_name = price_col.replace('price_', '')
+                    prices.append({
+                        "price_list_name": price_list_name,
+                        "price": float(row[price_col])
+                    })
+            
+            product_data = {
+                "barcode": str(row['barcode']),
+                "name": str(row['name']),
+                "description": str(row.get('description', '')) if pd.notna(row.get('description')) else '',
+                "category": str(row['category']),
+                "purchase_price": float(row['purchase_price']),
+                "tax_rate": float(row['tax_rate']),
+                "prices": prices,
+                "stock": 0,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.products.insert_one(product_data)
+            success_count += 1
+        except Exception as e:
+            errors.append({"row": index + 2, "error": str(e)})
+    
+    return ImportResult(success=success_count, errors=errors, total=len(df))
+
+@api_router.post("/import/clients", response_model=ImportResult)
+async def import_clients(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """
+    Importar clientes desde CSV o Excel
+    Columnas requeridas: document_type, document_number, first_name, last_name
+    Columnas opcionales: phone, email, address, latitude, longitude, price_list
+    """
+    df = read_file(file)
+    
+    required_columns = ['document_type', 'document_number', 'first_name', 'last_name']
+    if not all(col in df.columns for col in required_columns):
+        raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
+    
+    success_count = 0
+    errors = []
+    
+    for index, row in df.iterrows():
+        try:
+            # Check if client already exists
+            existing = await db.clients.find_one({
+                "document_type": str(row['document_type']),
+                "document_number": str(row['document_number'])
+            })
+            if existing:
+                errors.append({"row": index + 2, "error": f"Cliente con documento '{row['document_number']}' ya existe"})
+                continue
+            
+            # Check if document type exists
+            doc_type_exists = await db.document_types.find_one({"code": str(row['document_type'])})
+            if not doc_type_exists:
+                errors.append({"row": index + 2, "error": f"Tipo de documento '{row['document_type']}' no existe"})
+                continue
+            
+            client_data = {
+                "document_type": str(row['document_type']),
+                "document_number": str(row['document_number']),
+                "first_name": str(row['first_name']),
+                "last_name": str(row['last_name']),
+                "phone": str(row.get('phone', '')) if pd.notna(row.get('phone')) else None,
+                "email": str(row.get('email', '')) if pd.notna(row.get('email')) else None,
+                "address": str(row.get('address', '')) if pd.notna(row.get('address')) else None,
+                "latitude": float(row['latitude']) if pd.notna(row.get('latitude')) else None,
+                "longitude": float(row['longitude']) if pd.notna(row.get('longitude')) else None,
+                "price_list": str(row.get('price_list', 'default')) if pd.notna(row.get('price_list')) else 'default',
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.clients.insert_one(client_data)
+            success_count += 1
+        except Exception as e:
+            errors.append({"row": index + 2, "error": str(e)})
+    
+    return ImportResult(success=success_count, errors=errors, total=len(df))
+
+@api_router.post("/import/suppliers", response_model=ImportResult)
+async def import_suppliers(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """
+    Importar proveedores desde CSV o Excel
+    Columnas requeridas: name
+    Columnas opcionales: contact_name, phone, email, address
+    """
+    df = read_file(file)
+    
+    required_columns = ['name']
+    if not all(col in df.columns for col in required_columns):
+        raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
+    
+    success_count = 0
+    errors = []
+    
+    for index, row in df.iterrows():
+        try:
+            supplier_data = {
+                "name": str(row['name']),
+                "contact_name": str(row.get('contact_name', '')) if pd.notna(row.get('contact_name')) else None,
+                "phone": str(row.get('phone', '')) if pd.notna(row.get('phone')) else None,
+                "email": str(row.get('email', '')) if pd.notna(row.get('email')) else None,
+                "address": str(row.get('address', '')) if pd.notna(row.get('address')) else None,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await db.suppliers.insert_one(supplier_data)
+            success_count += 1
+        except Exception as e:
+            errors.append({"row": index + 2, "error": str(e)})
+    
+    return ImportResult(success=success_count, errors=errors, total=len(df))
+
+@api_router.get("/import/templates/{module_name}")
+async def download_template(module_name: str, current_user: User = Depends(get_current_user)):
+    """
+    Descargar plantilla CSV para importación
+    Módulos disponibles: categories, products, clients, suppliers
+    """
+    templates = {
+        "categories": {
+            "columns": ["name", "description"],
+            "sample": [
+                ["Electrónica", "Dispositivos electrónicos y accesorios"],
+                ["Alimentos", "Productos alimenticios"]
+            ]
+        },
+        "products": {
+            "columns": ["barcode", "name", "description", "category", "purchase_price", "tax_rate", "price_default", "price_mayorista", "price_minorista"],
+            "sample": [
+                ["001", "Producto 1", "Descripción producto 1", "Electrónica", "100.00", "19", "150.00", "140.00", "160.00"],
+                ["002", "Producto 2", "Descripción producto 2", "Alimentos", "50.00", "19", "70.00", "65.00", "75.00"]
+            ]
+        },
+        "clients": {
+            "columns": ["document_type", "document_number", "first_name", "last_name", "phone", "email", "address", "latitude", "longitude", "price_list"],
+            "sample": [
+                ["CC", "123456789", "Juan", "Pérez", "3001234567", "juan@example.com", "Calle 123", "4.6097", "-74.0817", "default"],
+                ["NIT", "987654321", "Empresa", "S.A.S", "3009876543", "info@empresa.com", "Carrera 45", "", "", "mayorista"]
+            ]
+        },
+        "suppliers": {
+            "columns": ["name", "contact_name", "phone", "email", "address"],
+            "sample": [
+                ["Proveedor ABC", "María López", "3001111111", "maria@abc.com", "Avenida 1"],
+                ["Distribuidora XYZ", "Carlos García", "3002222222", "carlos@xyz.com", "Calle 2"]
+            ]
+        }
+    }
+    
+    if module_name not in templates:
+        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
+    
+    template = templates[module_name]
+    
+    # Create CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(template["columns"])
+    for row in template["sample"]:
+        writer.writerow(row)
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode('utf-8-sig')),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=plantilla_{module_name}.csv"
+        }
+    )
+
 # Include the router
 app.include_router(api_router)
 
