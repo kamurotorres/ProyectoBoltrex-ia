@@ -30,6 +30,9 @@ const Layout = () => {
     { path: '/products', icon: Package, label: 'Productos' },
     { path: '/categories', icon: FolderOpen, label: 'Categorías' },
     { path: '/clients', icon: Users, label: 'Clientes' },
+    { path: '/suppliers', icon: Truck, label: 'Proveedores' },
+    { path: '/purchases', icon: ShoppingBag, label: 'Compras' },
+    { path: '/returns', icon: RotateCcw, label: 'Devoluciones' },
     { path: '/pos', icon: ShoppingCart, label: 'POS' },
     { path: '/inventory', icon: Warehouse, label: 'Inventario' },
     { path: '/reports', icon: FileText, label: 'Reportes' }
