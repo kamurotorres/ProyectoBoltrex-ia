@@ -104,6 +104,7 @@ function App() {
             <Route path="pos" element={<POS />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="import" element={<Import />} />
           </Route>
         </Routes>
       </BrowserRouter>
