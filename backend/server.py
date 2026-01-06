@@ -1139,8 +1139,12 @@ async def download_template(module_name: str, current_user: User = Depends(get_c
         }
     )
 
-# Include the router
+# Include the routers
 app.include_router(api_router)
+
+# Include RBAC router
+rbac_router = create_rbac_router(db)
+app.include_router(rbac_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
