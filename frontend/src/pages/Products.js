@@ -377,22 +377,26 @@ const Products = () => {
                 <TableCell className="text-right font-mono">${product.purchase_price.toFixed(2)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(product)}
-                      data-testid={`edit-product-${index}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(product.barcode)}
-                      data-testid={`delete-product-${index}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {canUpdate('products') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(product)}
+                        data-testid={`edit-product-${index}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete('products') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(product.barcode)}
+                        data-testid={`delete-product-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
