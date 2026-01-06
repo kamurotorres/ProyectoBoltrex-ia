@@ -28,21 +28,48 @@ const Layout = () => {
     navigate('/login');
   };
 
-  const navItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/products', icon: Package, label: 'Productos' },
-    { path: '/categories', icon: FolderOpen, label: 'Categorías' },
-    { path: '/clients', icon: Users, label: 'Clientes' },
-    { path: '/suppliers', icon: Truck, label: 'Proveedores' },
-    { path: '/purchases', icon: ShoppingBag, label: 'Compras' },
-    { path: '/returns', icon: RotateCcw, label: 'Devoluciones' },
-    { path: '/pos', icon: ShoppingCart, label: 'POS' },
-    { path: '/inventory', icon: Warehouse, label: 'Inventario' },
-    { path: '/reports', icon: FileText, label: 'Reportes' },
-    { path: '/import', icon: Upload, label: 'Importar' },
-    { path: '/users', icon: UserCog, label: 'Usuarios' },
-    { path: '/roles', icon: Shield, label: 'Roles y Permisos' }
+  // Map routes to module slugs
+  const routeToModuleMap = {
+    '/': 'dashboard',
+    '/products': 'products',
+    '/categories': 'categories',
+    '/clients': 'clients',
+    '/suppliers': 'suppliers',
+    '/purchases': 'purchases',
+    '/returns': 'returns',
+    '/pos': 'pos',
+    '/inventory': 'inventory',
+    '/reports': 'reports',
+    '/import': 'import',
+    '/users': 'users',
+    '/roles': 'permissions'
+  };
+
+  const allNavItems = [
+    { path: '/', icon: LayoutDashboard, label: 'Dashboard', moduleSlug: 'dashboard' },
+    { path: '/products', icon: Package, label: 'Productos', moduleSlug: 'products' },
+    { path: '/categories', icon: FolderOpen, label: 'Categorías', moduleSlug: 'categories' },
+    { path: '/clients', icon: Users, label: 'Clientes', moduleSlug: 'clients' },
+    { path: '/suppliers', icon: Truck, label: 'Proveedores', moduleSlug: 'suppliers' },
+    { path: '/purchases', icon: ShoppingBag, label: 'Compras', moduleSlug: 'purchases' },
+    { path: '/returns', icon: RotateCcw, label: 'Devoluciones', moduleSlug: 'returns' },
+    { path: '/pos', icon: ShoppingCart, label: 'POS', moduleSlug: 'pos' },
+    { path: '/inventory', icon: Warehouse, label: 'Inventario', moduleSlug: 'inventory' },
+    { path: '/reports', icon: FileText, label: 'Reportes', moduleSlug: 'reports' },
+    { path: '/import', icon: Upload, label: 'Importar', moduleSlug: 'import' },
+    { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
+    { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' }
   ];
+
+  // Filter nav items based on user permissions
+  const navItems = allNavItems.filter(item => {
+    if (!user || !user.permissions) return false;
+    
+    const modulePermissions = user.permissions[item.moduleSlug];
+    
+    // User needs at least READ permission to see the module
+    return modulePermissions && modulePermissions.read === true;
+  });
 
   return (
     <div className="flex min-h-screen">
