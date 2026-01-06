@@ -339,6 +339,7 @@ const Products = () => {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       <div className="mb-6">
