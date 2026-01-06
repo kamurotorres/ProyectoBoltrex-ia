@@ -17,6 +17,8 @@ import POS from '@/pages/POS';
 import Inventory from '@/pages/Inventory';
 import Reports from '@/pages/Reports';
 import Import from '@/pages/Import';
+import UsersManagement from '@/pages/UsersManagement';
+import RolesPermissions from '@/pages/RolesPermissions';
 import Layout from '@/components/Layout';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
