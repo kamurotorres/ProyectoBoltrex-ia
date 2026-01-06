@@ -185,13 +185,14 @@ const Products = () => {
           <h1 className="text-4xl font-bold tracking-tight">Productos</h1>
           <p className="text-muted-foreground mt-2">Gestiona tu catálogo de productos</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()} data-testid="create-product-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Producto
-            </Button>
-          </DialogTrigger>
+        {canCreate('products') && (
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => handleOpenDialog()} data-testid="create-product-button">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Producto
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="product-dialog">
             <DialogHeader>
               <DialogTitle>{editMode ? 'Editar Producto' : 'Nuevo Producto'}</DialogTitle>
