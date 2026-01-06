@@ -13,6 +13,8 @@ import {
   Warehouse,
   FileText,
   Upload,
+  UserCog,
+  Shield,
   LogOut
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
