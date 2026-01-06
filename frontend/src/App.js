@@ -107,6 +107,8 @@ function App() {
             <Route path="inventory" element={<Inventory />} />
             <Route path="reports" element={<Reports />} />
             <Route path="import" element={<Import />} />
+            <Route path="users" element={<UsersManagement />} />
+            <Route path="roles" element={<RolesPermissions />} />
           </Route>
         </Routes>
       </BrowserRouter>
