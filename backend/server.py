@@ -303,10 +303,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError:
         raise credentials_exception
     
-    user = await db.users.find_one({"email": email}, {"_id": 0})
+    # Search in users_extended first
+    user = await db.users_extended.find_one({"email": email}, {"_id": 0, "hashed_password": 0})
+    
+    # If not found in users_extended, try old users table for backward compatibility
+    if user is None:
+        user = await db.users.find_one({"email": email}, {"_id": 0, "hashed_password": 0})
+    
     if user is None:
         raise credentials_exception
-    return User(**user)
+    
+    # Return User format for compatibility
+    return User(
+        email=user["email"],
+        full_name=user.get("full_name") or f"{user.get('first_name', '')} {user.get('last_name', '')}",
+        role=user.get("role", "vendedor"),
+        is_active=user.get("is_active", True),
+        created_at=datetime.fromisoformat(user["created_at"]) if isinstance(user.get("created_at"), str) else user.get("created_at", datetime.now(timezone.utc))
+    )
 
 # ==================== AUTH ROUTES ====================
 
