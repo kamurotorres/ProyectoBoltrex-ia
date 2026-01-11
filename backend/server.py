@@ -1,6 +1,7 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import StreamingResponse
+from ticket_generator import TicketPDFGenerator
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -272,6 +273,28 @@ class Return(BaseModel):
 class ReturnCreate(BaseModel):
     invoice_number: str
     items: List[ReturnItem]
+
+# ==================== TICKET CONFIG MODELS ====================
+
+class TicketConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    company_name: str
+    nit: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    ticket_width: int = 80  # 58 or 80 mm
+    footer_message: str = "¡Gracias por su compra!"
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TicketConfigUpdate(BaseModel):
+    company_name: Optional[str] = None
+    nit: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    ticket_width: Optional[int] = None
+    footer_message: Optional[str] = None
 
 # ==================== AUTH UTILITIES ====================
 
