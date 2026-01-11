@@ -19,6 +19,8 @@ import Reports from '@/pages/Reports';
 import Import from '@/pages/Import';
 import UsersManagement from '@/pages/UsersManagement';
 import RolesPermissions from '@/pages/RolesPermissions';
+import Invoices from '@/pages/Invoices';
+import TicketConfig from '@/pages/TicketConfig';
 import Layout from '@/components/Layout';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -109,6 +111,8 @@ function App() {
             <Route path="import" element={<Import />} />
             <Route path="users" element={<UsersManagement />} />
             <Route path="roles" element={<RolesPermissions />} />
+            <Route path="invoices" element={<Invoices />} />
+            <Route path="ticket-config" element={<TicketConfig />} />
           </Route>
         </Routes>
       </BrowserRouter>
