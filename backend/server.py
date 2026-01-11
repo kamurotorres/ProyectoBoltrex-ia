@@ -1253,6 +1253,175 @@ async def download_template(module_name: str, current_user: User = Depends(get_c
         }
     )
 
+# ==================== TICKET CONFIGURATION ====================
+
+@api_router.get("/ticket-config")
+async def get_ticket_config(current_user: User = Depends(get_current_user)):
+    """Obtener la configuración del ticket"""
+    config = await db.ticket_config.find_one({}, {"_id": 0})
+    if not config:
+        # Return default config if none exists
+        return {
+            "company_name": "Mi Empresa",
+            "nit": "",
+            "phone": "",
+            "email": "",
+            "address": "",
+            "ticket_width": 80,
+            "footer_message": "¡Gracias por su compra!"
+        }
+    return config
+
+@api_router.put("/ticket-config")
+async def update_ticket_config(config: TicketConfigUpdate, current_user: User = Depends(get_current_user)):
+    """Actualizar o crear la configuración del ticket"""
+    update_data = {k: v for k, v in config.model_dump().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Check if config exists
+    existing = await db.ticket_config.find_one({})
+    
+    if existing:
+        await db.ticket_config.update_one({}, {"$set": update_data})
+    else:
+        # Create new config with defaults
+        default_config = {
+            "company_name": "Mi Empresa",
+            "nit": "",
+            "phone": "",
+            "email": "",
+            "address": "",
+            "ticket_width": 80,
+            "footer_message": "¡Gracias por su compra!",
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        default_config.update(update_data)
+        await db.ticket_config.insert_one(default_config)
+    
+    updated = await db.ticket_config.find_one({}, {"_id": 0})
+    return updated
+
+# ==================== INVOICES ENHANCED (WITH PDF TICKETS) ====================
+
+@api_router.get("/pos/invoices")
+async def get_pos_invoices(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    client_document: Optional[str] = None,
+    user_email: Optional[str] = None,
+    invoice_number: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user)
+):
+    """Listar facturas POS con filtros y paginación"""
+    query = {}
+    
+    # Apply filters
+    if start_date:
+        if "created_at" not in query:
+            query["created_at"] = {}
+        query["created_at"]["$gte"] = start_date
+    
+    if end_date:
+        if "created_at" not in query:
+            query["created_at"] = {}
+        query["created_at"]["$lte"] = end_date + "T23:59:59"
+    
+    if client_document:
+        query["client_document"] = {"$regex": client_document, "$options": "i"}
+    
+    if user_email:
+        query["created_by"] = {"$regex": user_email, "$options": "i"}
+    
+    if invoice_number:
+        query["invoice_number"] = {"$regex": invoice_number, "$options": "i"}
+    
+    if status:
+        query["status"] = status
+    
+    # Get total count for pagination
+    total = await db.invoices.count_documents(query)
+    
+    # Calculate skip
+    skip = (page - 1) * limit
+    
+    # Get invoices
+    invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    
+    # Parse dates
+    for inv in invoices:
+        if isinstance(inv.get('created_at'), str):
+            inv['created_at'] = inv['created_at']
+    
+    return {
+        "invoices": invoices,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "pages": (total + limit - 1) // limit
+        }
+    }
+
+@api_router.get("/pos/invoices/{invoice_number}")
+async def get_pos_invoice_detail(invoice_number: str, current_user: User = Depends(get_current_user)):
+    """Obtener detalle de una factura específica"""
+    invoice = await db.invoices.find_one({"invoice_number": invoice_number}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    return invoice
+
+@api_router.get("/pos/invoices/{invoice_number}/ticket")
+async def get_invoice_ticket(invoice_number: str, current_user: User = Depends(get_current_user)):
+    """Generar y descargar ticket PDF de una factura"""
+    # Get invoice
+    invoice = await db.invoices.find_one({"invoice_number": invoice_number}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    
+    # Get ticket config
+    config = await db.ticket_config.find_one({}, {"_id": 0})
+    if not config:
+        config = {
+            "company_name": "Mi Empresa",
+            "nit": "",
+            "phone": "",
+            "email": "",
+            "address": "",
+            "ticket_width": 80,
+            "footer_message": "¡Gracias por su compra!"
+        }
+    
+    # Create PDF generator
+    generator = TicketPDFGenerator(ticket_width=config.get("ticket_width", 80))
+    
+    # Prepare invoice data for the generator
+    invoice_data = {
+        "invoice_number": invoice["invoice_number"],
+        "client_name": invoice.get("client_name", "Cliente General"),
+        "client_document": invoice.get("client_document", ""),
+        "items": invoice.get("items", []),
+        "subtotal": invoice.get("subtotal", 0),
+        "total_tax": invoice.get("total_tax", 0),
+        "total": invoice.get("total", 0),
+        "created_at": invoice.get("created_at"),
+        "created_by": invoice.get("created_by", "")
+    }
+    
+    # Generate PDF
+    pdf_buffer = generator.generate_ticket(invoice_data, config)
+    
+    # Return as downloadable PDF
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=ticket_{invoice_number}.pdf"
+        }
+    )
+
 # Include the routers
 app.include_router(api_router)
 
