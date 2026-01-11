@@ -15,7 +15,9 @@ import {
   Upload,
   UserCog,
   Shield,
-  LogOut
+  LogOut,
+  Receipt,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -42,7 +44,9 @@ const Layout = () => {
     '/reports': 'reports',
     '/import': 'import',
     '/users': 'users',
-    '/roles': 'permissions'
+    '/roles': 'permissions',
+    '/invoices': 'invoices',
+    '/ticket-config': 'ticket-config'
   };
 
   const allNavItems = [
@@ -54,11 +58,13 @@ const Layout = () => {
     { path: '/purchases', icon: ShoppingBag, label: 'Compras', moduleSlug: 'purchases' },
     { path: '/returns', icon: RotateCcw, label: 'Devoluciones', moduleSlug: 'returns' },
     { path: '/pos', icon: ShoppingCart, label: 'POS', moduleSlug: 'pos' },
+    { path: '/invoices', icon: Receipt, label: 'Facturas', moduleSlug: 'invoices' },
     { path: '/inventory', icon: Warehouse, label: 'Inventario', moduleSlug: 'inventory' },
     { path: '/reports', icon: FileText, label: 'Reportes', moduleSlug: 'reports' },
     { path: '/import', icon: Upload, label: 'Importar', moduleSlug: 'import' },
     { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
-    { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' }
+    { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' },
+    { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' }
   ];
 
   // Filter nav items based on user permissions
