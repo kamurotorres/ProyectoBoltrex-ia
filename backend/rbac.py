@@ -119,6 +119,8 @@ DEFAULT_MODULES = [
     {"name": "Compras", "slug": "purchases", "description": "Registro de compras"},
     {"name": "Devoluciones", "slug": "returns", "description": "Gestión de devoluciones"},
     {"name": "POS", "slug": "pos", "description": "Punto de venta"},
+    {"name": "Facturas", "slug": "invoices", "description": "Listado y consulta de facturas"},
+    {"name": "Config. Tickets", "slug": "ticket-config", "description": "Configuración de tickets de impresión"},
     {"name": "Inventario", "slug": "inventory", "description": "Control de inventario"},
     {"name": "Reportes", "slug": "reports", "description": "Reportes y estadísticas"},
     {"name": "Importar", "slug": "import", "description": "Importación de datos"},
@@ -144,6 +146,7 @@ DEFAULT_ROLES = [
             "categories": Permission(read=True),
             "clients": Permission(read=True, create=True, update=True),
             "pos": Permission(read=True, create=True),
+            "invoices": Permission(read=True),
             "inventory": Permission(read=True),
             "reports": Permission(read=True)
         }
@@ -160,6 +163,8 @@ DEFAULT_ROLES = [
             "purchases": Permission(read=True, create=True),
             "returns": Permission(read=True, create=True),
             "pos": Permission(read=True, create=True),
+            "invoices": Permission(read=True),
+            "ticket-config": Permission(read=True, update=True),
             "inventory": Permission(read=True),
             "reports": Permission(read=True)
         }
