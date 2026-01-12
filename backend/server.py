@@ -1136,6 +1136,9 @@ async def register_fio_payment(
     
     await db.fio_payments.insert_one(payment_dict)
     
+    # Remove _id added by MongoDB for response
+    payment_response = {k: v for k, v in payment_dict.items() if k != '_id'}
+    
     # Update invoice balance
     new_amount_paid = invoice.get("amount_paid", 0) + payment.amount
     new_balance = invoice["total"] - new_amount_paid
@@ -1157,7 +1160,7 @@ async def register_fio_payment(
     
     return {
         "message": "Abono registrado exitosamente",
-        "payment": payment_dict,
+        "payment": payment_response,
         "invoice_update": {
             "invoice_number": invoice_number,
             "new_amount_paid": new_amount_paid,
