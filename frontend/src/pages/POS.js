@@ -3,26 +3,31 @@ import axios from 'axios';
 import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Search, Minus, Plus, Trash2, ShoppingCart } from 'lucide-react';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 const POS = () => {
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
+  const [paymentMethods, setPaymentMethods] = useState([]);
   const [searchProduct, setSearchProduct] = useState('');
   const [searchClient, setSearchClient] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // New fields for payment
+  const [paymentStatus, setPaymentStatus] = useState('pagado'); // 'pagado' or 'por_cobrar'
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -30,12 +35,19 @@ const POS = () => {
 
   const fetchData = async () => {
     try {
-      const [productsRes, clientsRes] = await Promise.all([
+      const [productsRes, clientsRes, paymentMethodsRes] = await Promise.all([
         axios.get(`${API}/products`),
-        axios.get(`${API}/clients`)
+        axios.get(`${API}/clients`),
+        axios.get(`${API}/payment-methods/active`)
       ]);
       setProducts(productsRes.data);
       setClients(clientsRes.data);
+      setPaymentMethods(paymentMethodsRes.data);
+      
+      // Set default payment method if available
+      if (paymentMethodsRes.data.length > 0) {
+        setSelectedPaymentMethod(paymentMethodsRes.data[0].name);
+      }
     } catch (error) {
       toast.error('Error al cargar datos');
     } finally {
@@ -117,6 +129,25 @@ const POS = () => {
     return { subtotal, totalTax, total };
   };
 
+  const downloadTicket = async (invoiceNumber) => {
+    try {
+      const response = await axios.get(`${API}/pos/invoices/${invoiceNumber}/ticket`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ticket_${invoiceNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading ticket:', error);
+    }
+  };
+
   const handleCheckout = async () => {
     if (!selectedClient) {
       toast.error('Selecciona un cliente');
@@ -126,15 +157,44 @@ const POS = () => {
       toast.error('El carrito está vacío');
       return;
     }
+    
+    // Validate payment method if status is 'pagado'
+    if (paymentStatus === 'pagado' && !selectedPaymentMethod) {
+      toast.error('Selecciona una forma de pago');
+      return;
+    }
 
     try {
-      const response = await axios.post(`${API}/invoices`, {
+      const invoiceData = {
         client_document: selectedClient.document_number,
-        items: cart
+        items: cart,
+        payment_status: paymentStatus,
+        payment_method: paymentStatus === 'pagado' ? selectedPaymentMethod : null
+      };
+      
+      const response = await axios.post(`${API}/invoices`, invoiceData);
+      
+      const statusMessage = paymentStatus === 'pagado' 
+        ? `Factura ${response.data.invoice_number} creada - PAGADA con ${selectedPaymentMethod}`
+        : `Factura ${response.data.invoice_number} creada - POR COBRAR`;
+      
+      toast.success(statusMessage, {
+        action: paymentStatus === 'pagado' ? {
+          label: 'Descargar Ticket',
+          onClick: () => downloadTicket(response.data.invoice_number)
+        } : undefined,
+        duration: 5000
       });
-      toast.success(`Factura ${response.data.invoice_number} creada exitosamente`);
+      
+      // Auto-download ticket for paid invoices
+      if (paymentStatus === 'pagado') {
+        setTimeout(() => downloadTicket(response.data.invoice_number), 500);
+      }
+      
+      // Reset form
       setCart([]);
       setSelectedClient(null);
+      setPaymentStatus('pagado');
       fetchData(); // Refresh products to update stock
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al crear factura');
@@ -323,14 +383,89 @@ const POS = () => {
                 </div>
               </div>
 
+              {/* Payment Section */}
+              <div className="border-t pt-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4" />
+                    Estado de Pago
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={paymentStatus === 'pagado' ? 'default' : 'outline'}
+                      className={`w-full ${paymentStatus === 'pagado' ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                      onClick={() => setPaymentStatus('pagado')}
+                      data-testid="payment-status-pagado"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Pagado
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={paymentStatus === 'por_cobrar' ? 'default' : 'outline'}
+                      className={`w-full ${paymentStatus === 'por_cobrar' ? 'bg-orange-600 hover:bg-orange-700' : ''}`}
+                      onClick={() => setPaymentStatus('por_cobrar')}
+                      data-testid="payment-status-por-cobrar"
+                    >
+                      <Wallet className="h-4 w-4 mr-2" />
+                      Por Cobrar
+                    </Button>
+                  </div>
+                </div>
+
+                {paymentStatus === 'pagado' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="payment-method" className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Forma de Pago *
+                    </Label>
+                    <Select
+                      value={selectedPaymentMethod}
+                      onValueChange={setSelectedPaymentMethod}
+                    >
+                      <SelectTrigger data-testid="select-payment-method">
+                        <SelectValue placeholder="Seleccione forma de pago" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentMethods.map((pm) => (
+                          <SelectItem key={pm.name} value={pm.name}>
+                            {pm.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {paymentStatus === 'por_cobrar' && (
+                  <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-md">
+                    <p className="text-sm text-orange-400">
+                      <Wallet className="h-4 w-4 inline mr-2" />
+                      La factura se registrará como crédito (fiado) y aparecerá en el módulo de Fios para gestionar los abonos.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <Button
                 className="w-full"
                 size="lg"
                 onClick={handleCheckout}
-                disabled={cart.length === 0 || !selectedClient}
+                disabled={cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod)}
                 data-testid="checkout-button"
               >
-                Procesar Venta
+                {paymentStatus === 'pagado' ? (
+                  <>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Procesar Venta (Pagado)
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="h-4 w-4 mr-2" />
+                    Procesar Venta (Crédito)
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
