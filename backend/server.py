@@ -996,6 +996,185 @@ async def get_returns(current_user: User = Depends(get_current_user)):
             ret['created_at'] = datetime.fromisoformat(ret['created_at'])
     return returns
 
+# ==================== FIOS (CREDITS/PAYMENTS) ====================
+
+@api_router.get("/fios")
+async def get_fios_accounts(current_user: User = Depends(get_current_user)):
+    """Obtener resumen de cuentas por cobrar por cliente"""
+    # Get all invoices with payment_status "por_cobrar" and balance > 0
+    pipeline = [
+        {"$match": {"payment_status": "por_cobrar", "balance": {"$gt": 0}}},
+        {"$group": {
+            "_id": {"client_document": "$client_document", "client_name": "$client_name"},
+            "total_credit": {"$sum": "$total"},
+            "total_paid": {"$sum": "$amount_paid"},
+            "balance": {"$sum": "$balance"},
+            "invoices_count": {"$sum": 1}
+        }},
+        {"$project": {
+            "_id": 0,
+            "client_document": "$_id.client_document",
+            "client_name": "$_id.client_name",
+            "total_credit": 1,
+            "total_paid": 1,
+            "balance": 1,
+            "invoices_count": 1
+        }},
+        {"$sort": {"balance": -1}}
+    ]
+    
+    accounts = await db.invoices.aggregate(pipeline).to_list(1000)
+    return accounts
+
+@api_router.get("/fios/{client_document}")
+async def get_fios_client_detail(client_document: str, current_user: User = Depends(get_current_user)):
+    """Obtener detalle de cuentas por cobrar de un cliente específico"""
+    # Get client info
+    client = await db.clients.find_one({"document_number": client_document}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+    
+    # Get pending invoices for this client
+    invoices = await db.invoices.find({
+        "client_document": client_document,
+        "payment_status": "por_cobrar",
+        "balance": {"$gt": 0}
+    }, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Get payment history for this client's invoices
+    invoice_numbers = [inv["invoice_number"] for inv in invoices]
+    payments = await db.fio_payments.find({
+        "invoice_number": {"$in": invoice_numbers}
+    }, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Calculate totals
+    total_credit = sum(inv["total"] for inv in invoices)
+    total_paid = sum(inv["amount_paid"] for inv in invoices)
+    total_balance = sum(inv["balance"] for inv in invoices)
+    
+    return {
+        "client": {
+            "document_number": client["document_number"],
+            "name": f"{client['first_name']} {client['last_name']}",
+            "phone": client.get("phone"),
+            "email": client.get("email")
+        },
+        "summary": {
+            "total_credit": total_credit,
+            "total_paid": total_paid,
+            "balance": total_balance,
+            "invoices_count": len(invoices)
+        },
+        "invoices": invoices,
+        "payment_history": payments
+    }
+
+@api_router.get("/fios/invoice/{invoice_number}")
+async def get_fios_invoice_detail(invoice_number: str, current_user: User = Depends(get_current_user)):
+    """Obtener detalle de una factura por cobrar específica"""
+    invoice = await db.invoices.find_one({"invoice_number": invoice_number}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    
+    if invoice.get("payment_status") != "por_cobrar":
+        raise HTTPException(status_code=400, detail="Esta factura no es una cuenta por cobrar")
+    
+    # Get payment history for this invoice
+    payments = await db.fio_payments.find({
+        "invoice_number": invoice_number
+    }, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    return {
+        "invoice": invoice,
+        "payments": payments
+    }
+
+@api_router.post("/fios/{invoice_number}/payment")
+async def register_fio_payment(
+    invoice_number: str, 
+    payment: FioPaymentCreate, 
+    current_user: User = Depends(get_current_user)
+):
+    """Registrar un abono a una factura por cobrar"""
+    # Get the invoice
+    invoice = await db.invoices.find_one({"invoice_number": invoice_number}, {"_id": 0})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    
+    if invoice.get("payment_status") != "por_cobrar":
+        raise HTTPException(status_code=400, detail="Esta factura no es una cuenta por cobrar")
+    
+    # Validate payment method is active
+    payment_method = await db.payment_methods.find_one({
+        "name": payment.payment_method,
+        "is_active": True
+    })
+    if not payment_method:
+        raise HTTPException(status_code=400, detail="La forma de pago seleccionada no existe o no está activa")
+    
+    # Validate payment amount
+    current_balance = invoice.get("balance", invoice["total"])
+    if payment.amount <= 0:
+        raise HTTPException(status_code=400, detail="El monto del abono debe ser mayor a 0")
+    if payment.amount > current_balance:
+        raise HTTPException(status_code=400, detail=f"El monto del abono (${payment.amount:,.2f}) excede el saldo pendiente (${current_balance:,.2f})")
+    
+    # Generate payment ID
+    import uuid
+    payment_id = f"PAY-{uuid.uuid4().hex[:8].upper()}"
+    
+    # Create payment record
+    payment_dict = {
+        "payment_id": payment_id,
+        "invoice_number": invoice_number,
+        "amount": payment.amount,
+        "payment_method": payment.payment_method,
+        "notes": payment.notes,
+        "created_by": current_user.email,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.fio_payments.insert_one(payment_dict)
+    
+    # Update invoice balance
+    new_amount_paid = invoice.get("amount_paid", 0) + payment.amount
+    new_balance = invoice["total"] - new_amount_paid
+    
+    # If fully paid, update payment_status
+    update_data = {
+        "amount_paid": new_amount_paid,
+        "balance": new_balance
+    }
+    
+    if new_balance <= 0:
+        update_data["payment_status"] = "pagado"
+        update_data["payment_method"] = payment.payment_method  # Last payment method used
+    
+    await db.invoices.update_one(
+        {"invoice_number": invoice_number},
+        {"$set": update_data}
+    )
+    
+    return {
+        "message": "Abono registrado exitosamente",
+        "payment": payment_dict,
+        "invoice_update": {
+            "invoice_number": invoice_number,
+            "new_amount_paid": new_amount_paid,
+            "new_balance": new_balance,
+            "fully_paid": new_balance <= 0
+        }
+    }
+
+@api_router.get("/fios/payments/{invoice_number}")
+async def get_invoice_payments(invoice_number: str, current_user: User = Depends(get_current_user)):
+    """Obtener historial de pagos de una factura"""
+    payments = await db.fio_payments.find({
+        "invoice_number": invoice_number
+    }, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    return payments
+
 # ==================== PURCHASES ====================
 
 @api_router.post("/purchases", response_model=Purchase)
