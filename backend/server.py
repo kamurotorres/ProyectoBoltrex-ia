@@ -209,6 +209,27 @@ class InvoiceItem(BaseModel):
     tax_amount: float
     total: float
 
+# ==================== PAYMENT METHODS MODELS ====================
+
+class PaymentMethod(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PaymentMethodCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+
+class PaymentMethodUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# ==================== INVOICE MODELS (UPDATED) ====================
+
 class Invoice(BaseModel):
     model_config = ConfigDict(extra="ignore")
     invoice_number: str
@@ -221,10 +242,44 @@ class Invoice(BaseModel):
     created_by: str  # email of user
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     status: str = "completed"  # completed, returned
+    payment_status: str = "pagado"  # pagado, por_cobrar
+    payment_method: Optional[str] = None  # Name of payment method
+    amount_paid: float = 0  # Amount paid so far
+    balance: float = 0  # Remaining balance
 
 class InvoiceCreate(BaseModel):
     client_document: str
     items: List[InvoiceItem]
+    payment_status: str = "pagado"  # pagado, por_cobrar
+    payment_method: Optional[str] = None  # Required if payment_status is "pagado"
+
+# ==================== FIOS (CREDITS/PAYMENTS) MODELS ====================
+
+class FioPayment(BaseModel):
+    """Individual payment record for a credit invoice"""
+    model_config = ConfigDict(extra="ignore")
+    payment_id: str
+    invoice_number: str
+    amount: float
+    payment_method: str
+    notes: Optional[str] = None
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class FioPaymentCreate(BaseModel):
+    amount: float
+    payment_method: str
+    notes: Optional[str] = None
+
+class FioAccount(BaseModel):
+    """Credit account summary for a client"""
+    model_config = ConfigDict(extra="ignore")
+    client_document: str
+    client_name: str
+    total_credit: float  # Total amount on credit
+    total_paid: float  # Total amount paid
+    balance: float  # Remaining balance
+    invoices_count: int  # Number of pending invoices
 
 class PurchaseItem(BaseModel):
     barcode: str
