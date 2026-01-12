@@ -17,7 +17,9 @@ import {
   Shield,
   LogOut,
   Receipt,
-  Settings
+  Settings,
+  CreditCard,
+  Wallet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -46,7 +48,9 @@ const Layout = () => {
     '/users': 'users',
     '/roles': 'permissions',
     '/invoices': 'invoices',
-    '/ticket-config': 'ticket-config'
+    '/ticket-config': 'ticket-config',
+    '/payment-methods': 'payment-methods',
+    '/fios': 'fios'
   };
 
   const allNavItems = [
@@ -59,9 +63,11 @@ const Layout = () => {
     { path: '/returns', icon: RotateCcw, label: 'Devoluciones', moduleSlug: 'returns' },
     { path: '/pos', icon: ShoppingCart, label: 'POS', moduleSlug: 'pos' },
     { path: '/invoices', icon: Receipt, label: 'Facturas', moduleSlug: 'invoices' },
+    { path: '/fios', icon: Wallet, label: 'Fios (Créditos)', moduleSlug: 'fios' },
     { path: '/inventory', icon: Warehouse, label: 'Inventario', moduleSlug: 'inventory' },
     { path: '/reports', icon: FileText, label: 'Reportes', moduleSlug: 'reports' },
     { path: '/import', icon: Upload, label: 'Importar', moduleSlug: 'import' },
+    { path: '/payment-methods', icon: CreditCard, label: 'Formas de Pago', moduleSlug: 'payment-methods' },
     { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
     { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' },
     { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' }
