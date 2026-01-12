@@ -90,7 +90,7 @@
 | Clientes | ✅ | ✅ | - |
 | Proveedores | ✅ | ✅ | - |
 | Compras | ✅ | ✅ | - |
-| POS | ✅ | ✅ | - |
+| POS | ✅ | ✅ | ✅ |
 | Devoluciones | ✅ | ✅ | - |
 | Inventario | ✅ | ✅ | - |
 | Reportes | ✅ | ✅ | - |
@@ -98,6 +98,8 @@
 | Facturas POS | ✅ | ✅ | ✅ |
 | Tickets PDF | ✅ | ✅ | ✅ |
 | Config Tickets | ✅ | ✅ | ✅ |
+| Formas de Pago | ✅ | ✅ | ✅ |
+| Fios (Créditos) | ✅ | ✅ | ✅ |
 
 ### Pendiente (P1)
 | Tarea | Estado | Prioridad |
@@ -143,7 +145,18 @@
 
 ## Changelog
 
-### 11 Enero 2026
+### 12 Enero 2026 - Formas de Pago y Fios
+- ✅ Implementado módulo de Formas de Pago (CRUD completo)
+- ✅ Implementado módulo Fios (Cuentas por cobrar y abonos parciales)
+- ✅ Actualizado POS con estados de factura (pagado/por_cobrar)
+- ✅ Integración de formas de pago en POS y Fios
+- ✅ Tests automatizados: 25/25 passed (backend) + 20 UI tests
+- ✅ Archivos nuevos:
+  - `/app/frontend/src/pages/PaymentMethods.js`
+  - `/app/frontend/src/pages/Fios.js`
+  - `/app/tests/test_payment_methods_fios.py`
+
+### 11 Enero 2026 - Facturas y Tickets
 - ✅ Implementado módulo de listado de facturas POS con filtros y paginación
 - ✅ Implementada generación de tickets PDF (58mm/80mm) con ReportLab
 - ✅ Implementada configuración de tickets (empresa, formato, mensaje)
