@@ -362,6 +362,96 @@ const Fios = () => {
             </div>
           </div>
         )}
+
+        {/* Payment Dialog for Detail View */}
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent data-testid="payment-dialog-detail">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5" />
+                Registrar Abono
+              </DialogTitle>
+            </DialogHeader>
+            {selectedInvoice && (
+              <form onSubmit={handleSubmitPayment} className="space-y-4">
+                <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Factura:</span>
+                    <span className="font-mono">{selectedInvoice.invoice_number}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Factura:</span>
+                    <span className="font-mono">{formatCurrency(selectedInvoice.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Ya Abonado:</span>
+                    <span className="font-mono text-green-400">{formatCurrency(selectedInvoice.amount_paid)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold border-t border-border pt-2">
+                    <span>Saldo Pendiente:</span>
+                    <span className="font-mono text-red-400">{formatCurrency(selectedInvoice.balance)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="amount-detail">Monto a Abonar *</Label>
+                  <Input
+                    id="amount-detail"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={selectedInvoice.balance}
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                    placeholder="0.00"
+                    data-testid="input-payment-amount-detail"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="payment_method-detail">Forma de Pago *</Label>
+                  <Select
+                    value={paymentForm.payment_method}
+                    onValueChange={(value) => setPaymentForm({ ...paymentForm, payment_method: value })}
+                  >
+                    <SelectTrigger data-testid="select-payment-method-detail">
+                      <SelectValue placeholder="Seleccione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentMethods.map((pm) => (
+                        <SelectItem key={pm.name} value={pm.name}>
+                          {pm.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes-detail">Notas (opcional)</Label>
+                  <Textarea
+                    id="notes-detail"
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
+                    placeholder="Observaciones del pago..."
+                    rows={2}
+                    data-testid="input-payment-notes-detail"
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowPaymentDialog(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" data-testid="submit-payment-btn-detail">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Registrar Abono
+                  </Button>
+                </DialogFooter>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     );
   }
