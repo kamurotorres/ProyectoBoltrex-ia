@@ -828,6 +828,23 @@ async def delete_payment_method(name: str, current_user: User = Depends(get_curr
 
 @api_router.post("/invoices", response_model=Invoice)
 async def create_invoice(invoice_data: InvoiceCreate, current_user: User = Depends(get_current_user)):
+    # Validate payment_status
+    if invoice_data.payment_status not in ["pagado", "por_cobrar"]:
+        raise HTTPException(status_code=400, detail="Estado de pago inválido. Use 'pagado' o 'por_cobrar'")
+    
+    # If payment_status is "pagado", payment_method is required
+    if invoice_data.payment_status == "pagado":
+        if not invoice_data.payment_method:
+            raise HTTPException(status_code=400, detail="La forma de pago es obligatoria cuando el estado es 'pagado'")
+        
+        # Verify payment method exists and is active
+        payment_method = await db.payment_methods.find_one({
+            "name": invoice_data.payment_method,
+            "is_active": True
+        })
+        if not payment_method:
+            raise HTTPException(status_code=400, detail="La forma de pago seleccionada no existe o no está activa")
+    
     # Get next invoice number
     last_invoice = await db.invoices.find_one({}, {"_id": 0, "invoice_number": 1}, sort=[("created_at", -1)])
     if last_invoice:
@@ -848,6 +865,14 @@ async def create_invoice(invoice_data: InvoiceCreate, current_user: User = Depen
     total_tax = sum(item.tax_amount for item in invoice_data.items)
     total = sum(item.total for item in invoice_data.items)
     
+    # Determine amount_paid and balance based on payment_status
+    if invoice_data.payment_status == "pagado":
+        amount_paid = total
+        balance = 0
+    else:  # por_cobrar
+        amount_paid = 0
+        balance = total
+    
     invoice_dict = {
         "invoice_number": invoice_number,
         "client_document": invoice_data.client_document,
@@ -858,7 +883,11 @@ async def create_invoice(invoice_data: InvoiceCreate, current_user: User = Depen
         "total": total,
         "created_by": current_user.email,
         "created_at": datetime.now(timezone.utc).isoformat(),
-        "status": "completed"
+        "status": "completed",
+        "payment_status": invoice_data.payment_status,
+        "payment_method": invoice_data.payment_method if invoice_data.payment_status == "pagado" else None,
+        "amount_paid": amount_paid,
+        "balance": balance
     }
     
     await db.invoices.insert_one(invoice_dict)
