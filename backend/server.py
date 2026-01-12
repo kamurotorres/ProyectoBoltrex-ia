@@ -755,6 +755,75 @@ async def activate_tax_rate(name: str, current_user: User = Depends(get_current_
         raise HTTPException(status_code=404, detail="Tax rate not found")
     return {"message": "Tax rate activated"}
 
+# ==================== PAYMENT METHODS ====================
+
+@api_router.post("/payment-methods", response_model=PaymentMethod)
+async def create_payment_method(payment_method: PaymentMethodCreate, current_user: User = Depends(get_current_user)):
+    """Crear una nueva forma de pago"""
+    existing = await db.payment_methods.find_one({"name": payment_method.name})
+    if existing:
+        raise HTTPException(status_code=400, detail="Ya existe una forma de pago con ese nombre")
+    
+    pm_dict = payment_method.model_dump()
+    pm_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.payment_methods.insert_one(pm_dict)
+    return PaymentMethod(**pm_dict)
+
+@api_router.get("/payment-methods", response_model=List[PaymentMethod])
+async def get_payment_methods(current_user: User = Depends(get_current_user)):
+    """Listar todas las formas de pago"""
+    payment_methods = await db.payment_methods.find({}, {"_id": 0}).to_list(1000)
+    for pm in payment_methods:
+        if isinstance(pm.get('created_at'), str):
+            pm['created_at'] = datetime.fromisoformat(pm['created_at'])
+    return payment_methods
+
+@api_router.get("/payment-methods/active", response_model=List[PaymentMethod])
+async def get_active_payment_methods(current_user: User = Depends(get_current_user)):
+    """Listar solo formas de pago activas (para POS y Fios)"""
+    payment_methods = await db.payment_methods.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    for pm in payment_methods:
+        if isinstance(pm.get('created_at'), str):
+            pm['created_at'] = datetime.fromisoformat(pm['created_at'])
+    return payment_methods
+
+@api_router.put("/payment-methods/{name}", response_model=PaymentMethod)
+async def update_payment_method(name: str, payment_method: PaymentMethodUpdate, current_user: User = Depends(get_current_user)):
+    """Actualizar una forma de pago"""
+    update_data = {k: v for k, v in payment_method.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No hay datos para actualizar")
+    
+    # Check if new name already exists (if changing name)
+    if "name" in update_data and update_data["name"] != name:
+        existing = await db.payment_methods.find_one({"name": update_data["name"]})
+        if existing:
+            raise HTTPException(status_code=400, detail="Ya existe una forma de pago con ese nombre")
+    
+    result = await db.payment_methods.update_one({"name": name}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Forma de pago no encontrada")
+    
+    # Get updated (use new name if changed)
+    new_name = update_data.get("name", name)
+    updated = await db.payment_methods.find_one({"name": new_name}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return PaymentMethod(**updated)
+
+@api_router.delete("/payment-methods/{name}")
+async def delete_payment_method(name: str, current_user: User = Depends(get_current_user)):
+    """Eliminar una forma de pago"""
+    # Check if payment method is being used in any invoice
+    usage = await db.invoices.find_one({"payment_method": name})
+    if usage:
+        raise HTTPException(status_code=400, detail="No se puede eliminar: esta forma de pago está siendo utilizada en facturas")
+    
+    result = await db.payment_methods.delete_one({"name": name})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Forma de pago no encontrada")
+    return {"message": "Forma de pago eliminada"}
+
 # ==================== INVOICES (POS) ====================
 
 @api_router.post("/invoices", response_model=Invoice)
