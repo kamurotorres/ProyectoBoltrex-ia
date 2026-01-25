@@ -964,24 +964,19 @@ async def create_return(return_data: ReturnCreate, current_user: User = Depends(
     
     # Calculate new invoice totals after return
     original_total = invoice.get("total", 0)
-    original_subtotal = invoice.get("subtotal", 0)
-    original_tax = invoice.get("total_tax", 0)
     
-    # Calculate return subtotal and tax
-    return_subtotal = sum(item.subtotal for item in return_data.items)
-    return_tax = sum(item.tax_amount for item in return_data.items)
-    
+    # New total after return
     new_total = original_total - total_return
-    new_subtotal = original_subtotal - return_subtotal
-    new_tax = original_tax - return_tax
     
     # Prepare update data
-    update_data = {
-        "status": "returned" if new_total <= 0 else "partial_return",
-        "total": max(0, new_total),
-        "subtotal": max(0, new_subtotal),
-        "total_tax": max(0, new_tax)
-    }
+    update_data = {}
+    
+    if new_total <= 0:
+        update_data["status"] = "returned"
+        update_data["total"] = 0
+    else:
+        update_data["status"] = "partial_return"
+        update_data["total"] = new_total
     
     # Handle "por_cobrar" invoices - update balance in Fios
     if invoice.get("payment_status") == "por_cobrar":
@@ -998,7 +993,7 @@ async def create_return(return_data: ReturnCreate, current_user: User = Depends(
             update_data["balance"] = 0
             # If there was overpayment due to return, adjust amount_paid
             if amount_paid > new_total:
-                update_data["amount_paid"] = new_total
+                update_data["amount_paid"] = max(0, new_total)
     
     # Update invoice
     await db.invoices.update_one(
