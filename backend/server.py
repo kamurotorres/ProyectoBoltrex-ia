@@ -950,22 +950,60 @@ async def create_return(return_data: ReturnCreate, current_user: User = Depends(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     
-    total = sum(item.total for item in return_data.items)
+    total_return = sum(item.total for item in return_data.items)
     
     return_dict = {
         "invoice_number": return_data.invoice_number,
         "items": [item.model_dump() for item in return_data.items],
-        "total": total,
+        "total": total_return,
         "created_by": current_user.email,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.returns.insert_one(return_dict)
     
-    # Update invoice status
+    # Calculate new invoice totals after return
+    original_total = invoice.get("total", 0)
+    original_subtotal = invoice.get("subtotal", 0)
+    original_tax = invoice.get("total_tax", 0)
+    
+    # Calculate return subtotal and tax
+    return_subtotal = sum(item.subtotal for item in return_data.items)
+    return_tax = sum(item.tax_amount for item in return_data.items)
+    
+    new_total = original_total - total_return
+    new_subtotal = original_subtotal - return_subtotal
+    new_tax = original_tax - return_tax
+    
+    # Prepare update data
+    update_data = {
+        "status": "returned" if new_total <= 0 else "partial_return",
+        "total": max(0, new_total),
+        "subtotal": max(0, new_subtotal),
+        "total_tax": max(0, new_tax)
+    }
+    
+    # Handle "por_cobrar" invoices - update balance in Fios
+    if invoice.get("payment_status") == "por_cobrar":
+        amount_paid = invoice.get("amount_paid", 0)
+        
+        # Calculate new balance: new_total - amount_already_paid
+        new_balance = max(0, new_total - amount_paid)
+        
+        update_data["balance"] = new_balance
+        
+        # If balance is 0 or less, mark as paid
+        if new_balance <= 0:
+            update_data["payment_status"] = "pagado"
+            update_data["balance"] = 0
+            # If there was overpayment due to return, adjust amount_paid
+            if amount_paid > new_total:
+                update_data["amount_paid"] = new_total
+    
+    # Update invoice
     await db.invoices.update_one(
         {"invoice_number": return_data.invoice_number},
-        {"$set": {"status": "returned"}}
+        {"$set": update_data}
     )
     
     # Update inventory and create movements
