@@ -1779,6 +1779,9 @@ async def get_invoice_ticket(invoice_number: str, current_user: User = Depends(g
             "footer_message": "¡Gracias por su compra!"
         }
     
+    # Get returns for this invoice
+    returns = await db.returns.find({"invoice_number": invoice_number}, {"_id": 0}).to_list(100)
+    
     # Create PDF generator
     generator = TicketPDFGenerator(ticket_width=config.get("ticket_width", 80))
     
@@ -1792,7 +1795,8 @@ async def get_invoice_ticket(invoice_number: str, current_user: User = Depends(g
         "total_tax": invoice.get("total_tax", 0),
         "total": invoice.get("total", 0),
         "created_at": invoice.get("created_at"),
-        "created_by": invoice.get("created_by", "")
+        "created_by": invoice.get("created_by", ""),
+        "returns": returns  # Include returns data
     }
     
     # Generate PDF
