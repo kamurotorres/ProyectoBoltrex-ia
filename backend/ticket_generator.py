@@ -183,6 +183,46 @@ class TicketPDFGenerator:
             c.drawString(self.margin + 8 * mm, self.current_y, f"  @${unit_price:,.2f} c/u")
             c.setFont("Helvetica", 7)
     
+    def _draw_returns(self, c, returns):
+        """Dibujar devoluciones con signo negativo"""
+        if not returns:
+            return
+        
+        # Línea separadora antes de devoluciones
+        self._draw_line(c)
+        
+        # Encabezado de devoluciones
+        self.current_y -= self.line_height * 0.5
+        c.setFont("Helvetica-Bold", 7)
+        self._draw_centered_text(c, "--- DEVOLUCIONES ---")
+        
+        c.setFont("Helvetica", 7)
+        
+        for ret in returns:
+            for item in ret.get('items', []):
+                self.current_y -= self.line_height
+                
+                # Cantidad con signo negativo
+                quantity = item.get('quantity', 0)
+                c.drawString(self.margin, self.current_y, f"-{quantity}")
+                
+                # Nombre del producto (truncado si es muy largo)
+                product_name = item.get('product_name', 'Producto')
+                if len(product_name) > 25:
+                    product_name = product_name[:22] + '...'
+                c.drawString(self.margin + 8 * mm, self.current_y, product_name)
+                
+                # Total con signo negativo
+                total = item.get('total', 0)
+                c.drawRightString(self.width - self.margin, self.current_y, f"-${total:,.2f}")
+                
+                # Precio unitario (línea adicional más pequeña)
+                self.current_y -= 3 * mm
+                c.setFont("Helvetica", 6)
+                unit_price = item.get('unit_price', 0)
+                c.drawString(self.margin + 8 * mm, self.current_y, f"  @${unit_price:,.2f} c/u (DEV)")
+                c.setFont("Helvetica", 7)
+    
     def _draw_totals(self, c, invoice_data):
         """Dibujar totales"""
         c.setFont("Helvetica", 8)
