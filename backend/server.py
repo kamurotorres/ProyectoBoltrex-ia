@@ -932,14 +932,31 @@ async def get_invoices(
             inv['created_at'] = datetime.fromisoformat(inv['created_at'])
     return invoices
 
-@api_router.get("/invoices/{invoice_number}", response_model=Invoice)
+@api_router.get("/invoices/{invoice_number}")
 async def get_invoice(invoice_number: str, current_user: User = Depends(get_current_user)):
     invoice = await db.invoices.find_one({"invoice_number": invoice_number}, {"_id": 0})
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if isinstance(invoice.get('created_at'), str):
-        invoice['created_at'] = datetime.fromisoformat(invoice['created_at'])
-    return Invoice(**invoice)
+        invoice['created_at'] = invoice['created_at']
+    
+    # Get payment history (abonos)
+    payments = await db.fio_payments.find(
+        {"invoice_number": invoice_number}, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    # Get returns history (devoluciones)
+    returns = await db.returns.find(
+        {"invoice_number": invoice_number}, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return {
+        **invoice,
+        "payments_history": payments,
+        "returns_history": returns
+    }
 
 # ==================== RETURNS ====================
 
