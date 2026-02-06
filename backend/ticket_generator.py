@@ -39,9 +39,14 @@ class TicketPDFGenerator:
         """
         buffer = BytesIO()
         
-        # Calcular altura dinámica basada en items
+        # Calcular altura dinámica basada en items y devoluciones
         num_items = len(invoice_data.get('items', []))
-        estimated_height = (100 + (num_items * 15) + 50) * mm
+        returns = invoice_data.get('returns', [])
+        num_return_items = sum(len(r.get('items', [])) for r in returns)
+        
+        # Más altura si hay devoluciones
+        extra_height = 30 if returns else 0
+        estimated_height = (100 + (num_items * 15) + (num_return_items * 15) + extra_height + 50) * mm
         page_height = min(estimated_height, self.max_height)
         
         c = canvas.Canvas(buffer, pagesize=(self.width, page_height))
@@ -72,13 +77,17 @@ class TicketPDFGenerator:
         # 7. Productos
         self._draw_products(c, invoice_data.get('items', []))
         
-        # 8. Línea separadora
+        # 8. Devoluciones (si existen)
+        if returns:
+            self._draw_returns(c, returns)
+        
+        # 9. Línea separadora
         self._draw_line(c)
         
-        # 9. Totales
+        # 10. Totales
         self._draw_totals(c, invoice_data)
         
-        # 10. Pie de página
+        # 11. Pie de página
         self._draw_footer(c)
         
         c.save()
