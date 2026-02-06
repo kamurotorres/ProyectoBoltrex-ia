@@ -122,9 +122,16 @@ const Invoices = () => {
     }
   };
 
-  const viewInvoiceDetail = (invoice) => {
-    setSelectedInvoice(invoice);
-    setShowDetail(true);
+  const viewInvoiceDetail = async (invoice) => {
+    try {
+      // Fetch full invoice detail with payments and returns history
+      const response = await axios.get(`${API}/invoices/${invoice.invoice_number}`);
+      setSelectedInvoice(response.data);
+      setShowDetail(true);
+    } catch (error) {
+      toast.error('Error al cargar el detalle de la factura');
+      console.error(error);
+    }
   };
 
   const formatDate = (dateStr) => {
