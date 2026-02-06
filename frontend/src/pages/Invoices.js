@@ -478,12 +478,108 @@ const Invoices = () => {
                     <span className="text-muted-foreground">IVA Total:</span>
                     <span className="font-mono">{formatCurrency(selectedInvoice.total_tax)}</span>
                   </div>
+                  {selectedInvoice.payment_status === 'por_cobrar' && (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Abonado:</span>
+                        <span className="font-mono text-green-400">{formatCurrency(selectedInvoice.amount_paid || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Saldo:</span>
+                        <span className="font-mono text-red-400">{formatCurrency(selectedInvoice.balance || 0)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between text-lg font-bold border-t border-border pt-2">
                     <span>Total:</span>
                     <span className="font-mono">{formatCurrency(selectedInvoice.total)}</span>
                   </div>
                 </div>
               </div>
+
+              {/* Payments History (Historial de Abonos) */}
+              {selectedInvoice.payments_history && selectedInvoice.payments_history.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-400" />
+                    Historial de Abonos ({selectedInvoice.payments_history.length})
+                  </h4>
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-green-500/10">
+                        <tr>
+                          <th className="px-3 py-2 text-left">ID</th>
+                          <th className="px-3 py-2 text-left">Fecha</th>
+                          <th className="px-3 py-2 text-left">Forma de Pago</th>
+                          <th className="px-3 py-2 text-right">Monto</th>
+                          <th className="px-3 py-2 text-left">Notas</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {selectedInvoice.payments_history.map((payment, idx) => (
+                          <tr key={idx} className="hover:bg-muted/30">
+                            <td className="px-3 py-2 font-mono text-xs">{payment.payment_id}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{formatDate(payment.created_at)}</td>
+                            <td className="px-3 py-2">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/20 text-primary rounded text-xs">
+                                <CreditCard className="h-3 w-3" />
+                                {payment.payment_method}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-green-400">
+                              +{formatCurrency(payment.amount)}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">{payment.notes || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Returns History (Historial de Devoluciones) */}
+              {selectedInvoice.returns_history && selectedInvoice.returns_history.length > 0 && (
+                <div>
+                  <h4 className="font-medium mb-2 flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4 text-orange-400" />
+                    Historial de Devoluciones ({selectedInvoice.returns_history.length})
+                  </h4>
+                  <div className="border border-border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-orange-500/10">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Fecha</th>
+                          <th className="px-3 py-2 text-left">Productos</th>
+                          <th className="px-3 py-2 text-right">Total Devuelto</th>
+                          <th className="px-3 py-2 text-left">Usuario</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {selectedInvoice.returns_history.map((ret, idx) => (
+                          <tr key={idx} className="hover:bg-muted/30">
+                            <td className="px-3 py-2 text-muted-foreground">{formatDate(ret.created_at)}</td>
+                            <td className="px-3 py-2">
+                              <div className="space-y-1">
+                                {ret.items.map((item, itemIdx) => (
+                                  <div key={itemIdx} className="text-xs">
+                                    <span className="font-medium">{item.product_name}</span>
+                                    <span className="text-muted-foreground"> x{item.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-orange-400">
+                              -{formatCurrency(ret.total)}
+                            </td>
+                            <td className="px-3 py-2 text-muted-foreground text-xs">{ret.created_by}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end gap-2 pt-4 border-t border-border">
