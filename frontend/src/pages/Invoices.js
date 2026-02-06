@@ -401,7 +401,7 @@ const Invoices = () => {
 
       {/* Invoice Detail Modal */}
       <Dialog open={showDetail} onOpenChange={setShowDetail}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="invoice-detail-modal">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="invoice-detail-modal">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
