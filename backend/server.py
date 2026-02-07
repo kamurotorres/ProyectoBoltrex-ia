@@ -159,6 +159,12 @@ class ClientCreate(BaseModel):
     longitude: Optional[float] = None
     price_list: str = "default"
 
+    @validator('email', 'phone', 'address', pre=True)
+    def empty_str_to_none(cls, v):
+        if v == '':
+            return None
+        return v
+
 class ClientUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -168,6 +174,12 @@ class ClientUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     price_list: Optional[str] = None
+
+    @validator('email', 'phone', 'address', pre=True)
+    def empty_str_to_none(cls, v):
+        if v == '':
+            return None
+        return v
 
 class Supplier(BaseModel):
     model_config = ConfigDict(extra="ignore")
