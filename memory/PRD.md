@@ -1,186 +1,56 @@
-# Boltrex - Sistema de Inventario y Ventas POS
+# Boltrex - Product Requirements Document
 
-## Información General
-- **Nombre del Proyecto:** Boltrex
-- **Tipo:** Aplicación web de gestión de inventario y ventas
-- **Arquitectura:** API-first (FastAPI + React + MongoDB)
-- **Tema:** Modo oscuro
-- **Idioma:** Español
+## Original Problem Statement
+Build a responsive web application named "Boltrex" for inventory and sales management with an API-first architecture. The system includes Authentication & RBAC, Product Management, Pricing, Categories, Client Management, POS Invoicing, Returns, Suppliers & Purchases, Inventory, Reports, VAT Management, Data Import, Payment Methods, Credit (Fios) management, and PDF ticket generation.
 
-## Requisitos del Producto
+## Architecture
+- **Backend:** FastAPI + MongoDB (pymongo) + Pydantic + JWT + ReportLab
+- **Frontend:** React + React Router + Tailwind CSS + Shadcn/UI + cmdk
+- **Database:** MongoDB (test_database)
 
-### Módulos Core Implementados ✅
-1. **Autenticación & RBAC**
-   - Login JWT
-   - Sistema de roles y permisos granulares
-   - Gestión de usuarios extendida
+## Core Modules (All Implemented)
+1. Authentication & RBAC (backend + frontend)
+2. Product Management (CRUD)
+3. Pricing & Price Lists
+4. Categories (CRUD)
+5. Client Management (CRUD)
+6. POS Invoicing (with payment status)
+7. Returns (with credit balance updates)
+8. Suppliers & Purchases (with autocomplete)
+9. Inventory (real-time stock)
+10. Reports
+11. VAT Management
+12. Data Import (CSV/Excel)
+13. Invoice Listing & PDF Tickets
+14. Payment Methods (CRUD)
+15. Fios/Credits Management
+16. Ticket Configuration
+17. Roles & Permissions Management
+18. User Management
 
-2. **Gestión de Productos**
-   - CRUD completo
-   - Código de barras, categorías
-   - Múltiples listas de precios
+## What's Been Implemented
 
-3. **Gestión de Categorías**
-   - CRUD completo
+### Session 1 (Jan 2026)
+- Full core modules: Auth, RBAC, Products, Categories, Clients, Suppliers, Purchases, Returns, POS, Inventory, Reports, Import
+- Invoice Listing & PDF Ticket generation with ticket config
+- Payment Methods & Fios (Credits) modules
+- POS payment status (Pagado/Por Cobrar) and payment method selection
+- Returns logic updating credit balances
+- UX improvements: Autocomplete for Purchases and POS, full-width POS layout
+- Seeding scripts for all modules (init_rbac.py, seed_data.py)
 
-4. **Gestión de Clientes**
-   - CRUD con tipos de documento
-   - Geolocalización (lat/long)
-   - Lista de precios asignada
+### Session 2 (Feb 7, 2026)
+- **Frontend RBAC rollout (P0):** Implemented `usePermissions` hook across ALL frontend pages
+  - Pages updated: Categories, Clients, Suppliers, Purchases, Returns, UsersManagement, TicketConfig, RolesPermissions, Import, POS
+  - Pages already done: Products, PaymentMethods, Fios (partial)
+  - Pattern: canCreate gates Create buttons, canUpdate gates Edit/Save buttons, canDelete gates Delete buttons
+  - Shared dialogs (Categories, Clients, Users): Separated Dialog from trigger button so both Create and Edit work independently
+  - Sidebar navigation already filtered by read permissions (Layout.js)
+  - Testing: 100% pass rate on all pages with testing agent
 
-5. **Proveedores**
-   - CRUD completo
+## Credentials
+- Admin: admin@boltrex.com / admin (Administrador role, all permissions)
 
-6. **Compras**
-   - Registro de compras
-   - Actualización automática de inventario
-
-7. **POS (Punto de Venta)**
-   - Creación de facturas
-   - Numeración consecutiva automática
-   - Cálculo de impuestos
-
-8. **Devoluciones**
-   - Devoluciones parciales/totales
-   - Actualización automática de inventario
-
-9. **Inventario**
-   - Control de stock en tiempo real
-   - Historial de movimientos
-
-10. **Reportes**
-    - Ventas con filtros
-    - Inventario
-    - Exportación CSV/Excel
-
-11. **Importación de Datos**
-    - CSV/Excel para clientes, productos, categorías, proveedores
-
-12. **Tasas de IVA**
-    - Gestión de tasas con activación única
-
-### Módulos Nuevos (Enero 2026) ✅
-13. **Listado de Facturas POS** ✅
-    - Endpoint: `GET /api/pos/invoices`
-    - Filtros: fecha, cliente, usuario, número, estado
-    - Paginación
-    - Modal de detalle
-    - Frontend: `/invoices`
-
-14. **Generación de Tickets PDF** ✅
-    - Endpoint: `GET /api/pos/invoices/{invoice_number}/ticket`
-    - Formato térmico 58mm/80mm
-    - Incluye: encabezado empresa, items, totales, pie de página
-
-15. **Configuración de Tickets** ✅
-    - Endpoints: `GET/PUT /api/ticket-config`
-    - Campos: nombre empresa, NIT, teléfono, email, dirección
-    - Ancho papel: 58mm o 80mm
-    - Mensaje pie de página personalizable
-    - Frontend: `/ticket-config`
-
-## Estado de Implementación
-
-### Completado
-| Módulo | Backend | Frontend | Tests |
-|--------|---------|----------|-------|
-| Auth & RBAC | ✅ | ✅ | ✅ |
-| Productos | ✅ | ✅ | - |
-| Categorías | ✅ | ✅ | - |
-| Clientes | ✅ | ✅ | - |
-| Proveedores | ✅ | ✅ | - |
-| Compras | ✅ | ✅ | - |
-| POS | ✅ | ✅ | ✅ |
-| Devoluciones | ✅ | ✅ | - |
-| Inventario | ✅ | ✅ | - |
-| Reportes | ✅ | ✅ | - |
-| Importación | ✅ | ✅ | - |
-| Facturas POS | ✅ | ✅ | ✅ |
-| Tickets PDF | ✅ | ✅ | ✅ |
-| Config Tickets | ✅ | ✅ | ✅ |
-| Formas de Pago | ✅ | ✅ | ✅ |
-| Fios (Créditos) | ✅ | ✅ | ✅ |
-
-### Pendiente (P1)
-| Tarea | Estado | Prioridad |
-|-------|--------|-----------|
-| Permisos UI en todas las páginas | No iniciado | P1 |
-
-## Arquitectura
-
-```
-/app/
-├── backend/
-│   ├── server.py           # API principal FastAPI
-│   ├── server_rbac.py      # Endpoints RBAC
-│   ├── rbac.py             # Modelos y lógica RBAC
-│   ├── ticket_generator.py # Generación PDF tickets
-│   └── .env
-├── frontend/
-│   ├── src/
-│   │   ├── App.js
-│   │   ├── components/
-│   │   │   ├── Layout.js
-│   │   │   └── ui/         # Shadcn components
-│   │   ├── hooks/
-│   │   │   └── usePermissions.js
-│   │   └── pages/
-│   │       ├── Invoices.js     # Nuevo
-│   │       ├── TicketConfig.js # Nuevo
-│   │       └── ...
-│   └── .env
-├── scripts/
-│   ├── seed_data.py
-│   └── init_rbac.py
-└── tests/
-    └── test_invoices_tickets.py
-```
-
-## Credenciales de Prueba
-- **Admin:** admin@boltrex.com / admin123
-
-## URLs
-- **Frontend:** https://boltrex-inv.preview.emergentagent.com
-- **Backend API:** https://boltrex-inv.preview.emergentagent.com/api
-
-## Changelog
-
-### 12 Enero 2026 - Formas de Pago y Fios
-- ✅ Implementado módulo de Formas de Pago (CRUD completo)
-- ✅ Implementado módulo Fios (Cuentas por cobrar y abonos parciales)
-- ✅ Actualizado POS con estados de factura (pagado/por_cobrar)
-- ✅ Integración de formas de pago en POS y Fios
-- ✅ Tests automatizados: 25/25 passed (backend) + 20 UI tests
-- ✅ Archivos nuevos:
-  - `/app/frontend/src/pages/PaymentMethods.js`
-  - `/app/frontend/src/pages/Fios.js`
-  - `/app/tests/test_payment_methods_fios.py`
-
-### 11 Enero 2026 - Facturas y Tickets
-- ✅ Implementado módulo de listado de facturas POS con filtros y paginación
-- ✅ Implementada generación de tickets PDF (58mm/80mm) con ReportLab
-- ✅ Implementada configuración de tickets (empresa, formato, mensaje)
-- ✅ Agregados nuevos módulos al sistema RBAC: 'invoices', 'ticket-config'
-- ✅ Tests automatizados: 20/20 passed (backend) + 16 UI tests
-- ✅ Archivos nuevos:
-  - `/app/backend/ticket_generator.py`
-  - `/app/frontend/src/pages/Invoices.js`
-  - `/app/frontend/src/pages/TicketConfig.js`
-  - `/app/tests/test_invoices_tickets.py`
-
-## Próximos Pasos (Backlog)
-
-### P1 - Alta Prioridad
-1. **Implementar control de permisos UI en todas las páginas**
-   - Usar hook `usePermissions` en: Categories.js, Clients.js, Suppliers.js, Purchases.js, Returns.js, UsersManagement.js, RolesPermissions.js
-   - Ocultar botones Crear/Editar/Eliminar según permisos del usuario
-
-### P2 - Media Prioridad
-2. Mejorar diseño del ticket PDF (logo de empresa)
-3. Agregar exportación de facturas a Excel
-4. Dashboard con gráficos de ventas
-
-### P3 - Baja Prioridad
-5. Notificaciones de stock bajo
-6. Integración con impresoras térmicas vía WebUSB
-7. App móvil PWA
+## Prioritized Backlog
+- **P1:** Dashboard with sales graphs and reports
+- **P2:** Accounts receivable report with overdue balance alerts
