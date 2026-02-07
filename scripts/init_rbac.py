@@ -24,25 +24,29 @@ async def initialize_rbac():
     
     print("🔐 Inicializando sistema RBAC...")
     
-    # Create system modules
-    existing_modules = await db.system_modules.count_documents({})
-    if existing_modules == 0:
-        modules = []
-        for mod in DEFAULT_MODULES:
+    # Create or update system modules
+    print("\n📦 Verificando módulos del sistema...")
+    modules_created = 0
+    modules_existing = 0
+    for mod in DEFAULT_MODULES:
+        existing = await db.system_modules.find_one({"slug": mod["slug"]})
+        if not existing:
             mod_dict = mod.copy()
             mod_dict["is_active"] = True
             mod_dict["created_at"] = datetime.now(timezone.utc).isoformat()
-            modules.append(mod_dict)
-        
-        await db.system_modules.insert_many(modules)
-        print(f"✅ Creados {len(modules)} módulos del sistema")
-    else:
-        print(f"⚠️  Ya existen {existing_modules} módulos. Omitiendo creación.")
+            await db.system_modules.insert_one(mod_dict)
+            print(f"  ✅ Creado módulo: {mod['name']}")
+            modules_created += 1
+        else:
+            modules_existing += 1
     
-    # Create default roles
-    existing_roles = await db.roles.count_documents({})
-    if existing_roles == 0:
-        for role_data in DEFAULT_ROLES:
+    print(f"  📊 Módulos: {modules_created} creados, {modules_existing} existentes")
+    
+    # Create default roles if they don't exist
+    print("\n👥 Verificando roles...")
+    for role_data in DEFAULT_ROLES:
+        existing_role = await db.roles.find_one({"name": role_data["name"]})
+        if not existing_role:
             # Create role
             role = {
                 "name": role_data["name"],
@@ -51,9 +55,15 @@ async def initialize_rbac():
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
             await db.roles.insert_one(role)
-            
-            # Create permissions
-            for module_slug, permissions in role_data["permissions"].items():
+            print(f"  ✅ Creado rol: {role_data['name']}")
+        
+        # Create or update permissions for this role
+        for module_slug, permissions in role_data["permissions"].items():
+            existing_perm = await db.role_permissions.find_one({
+                "role_name": role_data["name"],
+                "module_slug": module_slug
+            })
+            if not existing_perm:
                 perm_doc = {
                     "role_name": role_data["name"],
                     "module_slug": module_slug,
@@ -66,12 +76,10 @@ async def initialize_rbac():
                     "created_at": datetime.now(timezone.utc).isoformat()
                 }
                 await db.role_permissions.insert_one(perm_doc)
-            
-            print(f"✅ Creado rol: {role_data['name']}")
-    else:
-        print(f"⚠️  Ya existen {existing_roles} roles. Omitiendo creación.")
+                print(f"    ✅ Permisos '{module_slug}' asignados a {role_data['name']}")
     
     # Migrate existing users to extended format if needed
+    print("\n👤 Verificando usuarios...")
     old_users = await db.users.find({}, {"_id": 0}).to_list(1000)
     for old_user in old_users:
         existing_extended = await db.users_extended.find_one({"email": old_user["email"]})
@@ -89,10 +97,12 @@ async def initialize_rbac():
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             await db.users_extended.insert_one(extended_user)
-            print(f"✅ Migrado usuario: {old_user['email']}")
+            print(f"  ✅ Migrado usuario: {old_user['email']}")
     
     client.close()
-    print("🎉 Sistema RBAC inicializado correctamente!")
+    print("\n🎉 Sistema RBAC inicializado correctamente!")
+    print(f"   Total módulos configurados: {len(DEFAULT_MODULES)}")
+    print(f"   Total roles configurados: {len(DEFAULT_ROLES)}")
 
 if __name__ == "__main__":
     asyncio.run(initialize_rbac())
