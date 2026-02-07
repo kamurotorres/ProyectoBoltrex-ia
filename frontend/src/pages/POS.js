@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, Download } from 'lucide-react';
+import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, Download, User, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const POS = () => {
@@ -55,33 +55,53 @@ const POS = () => {
     }
   };
 
+  // Get unit price based on client's price list
+  const getProductPrice = (product) => {
+    let unitPrice = product.purchase_price * 1.3; // Default markup
+    if (selectedClient && product.prices && product.prices.length > 0) {
+      const clientPriceList = product.prices.find(p => p.price_list_name === selectedClient.price_list);
+      if (clientPriceList) {
+        unitPrice = clientPriceList.price;
+      }
+    }
+    return unitPrice;
+  };
+
   const addToCart = (product) => {
+    if (!selectedClient) {
+      toast.error('Primero selecciona un cliente');
+      return;
+    }
+    
     if (product.stock <= 0) {
       toast.error('Producto sin stock');
       return;
     }
 
-    const existingItem = cart.find(item => item.barcode === product.barcode);
-    if (existingItem) {
-      if (existingItem.quantity >= product.stock) {
+    const existingItemIndex = cart.findIndex(item => item.barcode === product.barcode);
+    
+    if (existingItemIndex !== -1) {
+      // Product already in cart - increment quantity and recalculate totals
+      const existingItem = cart[existingItemIndex];
+      const newQuantity = existingItem.quantity + 1;
+      
+      if (newQuantity > product.stock) {
         toast.error('Stock insuficiente');
         return;
       }
-      setCart(cart.map(item =>
-        item.barcode === product.barcode
-          ? { ...item, quantity: item.quantity + 1 }
+      
+      const subtotal = existingItem.unit_price * newQuantity;
+      const taxAmount = (subtotal * existingItem.tax_rate) / 100;
+      const total = subtotal + taxAmount;
+      
+      setCart(cart.map((item, index) =>
+        index === existingItemIndex
+          ? { ...item, quantity: newQuantity, subtotal, tax_amount: taxAmount, total }
           : item
       ));
     } else {
-      // Get price based on client's price list
-      let unitPrice = product.purchase_price * 1.3; // Default markup
-      if (selectedClient && product.prices.length > 0) {
-        const clientPriceList = product.prices.find(p => p.price_list_name === selectedClient.price_list);
-        if (clientPriceList) {
-          unitPrice = clientPriceList.price;
-        }
-      }
-
+      // New product - add to cart
+      const unitPrice = getProductPrice(product);
       const subtotal = unitPrice;
       const taxAmount = (subtotal * product.tax_rate) / 100;
       const total = subtotal + taxAmount;
@@ -194,11 +214,38 @@ const POS = () => {
       // Reset form
       setCart([]);
       setSelectedClient(null);
+      setSearchClient('');
       setPaymentStatus('pagado');
       fetchData(); // Refresh products to update stock
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al crear factura');
     }
+  };
+
+  // Clear cart when client changes (prices may differ)
+  const handleClientChange = (client) => {
+    if (cart.length > 0 && selectedClient && selectedClient.document_number !== client.document_number) {
+      // Recalculate cart prices for new client
+      const updatedCart = cart.map(item => {
+        const product = products.find(p => p.barcode === item.barcode);
+        if (product) {
+          let unitPrice = product.purchase_price * 1.3;
+          if (client && product.prices && product.prices.length > 0) {
+            const clientPriceList = product.prices.find(p => p.price_list_name === client.price_list);
+            if (clientPriceList) {
+              unitPrice = clientPriceList.price;
+            }
+          }
+          const subtotal = unitPrice * item.quantity;
+          const taxAmount = (subtotal * item.tax_rate) / 100;
+          const total = subtotal + taxAmount;
+          return { ...item, unit_price: unitPrice, subtotal, tax_amount: taxAmount, total };
+        }
+        return item;
+      });
+      setCart(updatedCart);
+    }
+    setSelectedClient(client);
   };
 
   const filteredProducts = products.filter(p =>
@@ -225,53 +272,27 @@ const POS = () => {
         <p className="text-muted-foreground mt-2">Sistema de facturación rápida</p>
       </div>
 
-      <div className="pos-split">
-        {/* Left: Products */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Productos</CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Client Selection (FIRST - Required) */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className={`${!selectedClient ? 'border-orange-500/50 bg-orange-500/5' : 'border-green-500/50'}`}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Cliente
+                <span className="text-xs text-orange-500 font-normal">(Requerido)</span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  placeholder="Buscar producto..."
-                  value={searchProduct}
-                  onChange={(e) => setSearchProduct(e.target.value)}
-                  className="pl-10"
-                  data-testid="pos-search-product-input"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto">
-                {filteredProducts.map((product, index) => (
-                  <Card
-                    key={product.barcode}
-                    className="cursor-pointer card-hover"
-                    onClick={() => addToCart(product)}
-                    data-testid={`pos-product-${index}`}
-                  >
-                    <CardContent className="p-4">
-                      <p className="font-semibold text-sm truncate">{product.name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>
-                      <p className="text-sm font-mono mt-2">Stock: {product.stock}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right: Cart & Checkout */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              {!selectedClient && (
+                <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-md mb-3">
+                  <p className="text-sm text-orange-400 flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    Selecciona un cliente para continuar
+                  </p>
+                </div>
+              )}
+              
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -285,38 +306,58 @@ const POS = () => {
               </div>
 
               {selectedClient ? (
-                <div className="p-3 bg-secondary rounded-md" data-testid="selected-client">
-                  <p className="font-semibold">{`${selectedClient.first_name} ${selectedClient.last_name}`}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{selectedClient.document_number}</p>
+                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-md" data-testid="selected-client">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                      <User className="h-4 w-4 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{`${selectedClient.first_name} ${selectedClient.last_name}`}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{selectedClient.document_number}</p>
+                    </div>
+                  </div>
+                  {selectedClient.price_list && (
+                    <p className="text-xs text-green-400 mt-2">Lista de precios: {selectedClient.price_list}</p>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-2"
-                    onClick={() => setSelectedClient(null)}
+                    className="mt-2 w-full"
+                    onClick={() => {
+                      setSelectedClient(null);
+                      setSearchClient('');
+                    }}
                   >
-                    Cambiar
+                    Cambiar Cliente
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-64 overflow-y-auto">
                   {filteredClients.map((client, index) => (
                     <div
                       key={client.document_number}
-                      className="p-2 border rounded-md cursor-pointer hover:bg-accent"
-                      onClick={() => setSelectedClient(client)}
+                      className="p-3 border rounded-md cursor-pointer hover:bg-accent transition-colors"
+                      onClick={() => handleClientChange(client)}
                       data-testid={`pos-client-${index}`}
                     >
-                      <p className="text-sm font-medium">{`${client.first_name} ${client.last_name}`}</p>
+                      <p className="font-medium">{`${client.first_name} ${client.last_name}`}</p>
                       <p className="text-xs text-muted-foreground font-mono">{client.document_number}</p>
+                      {client.price_list && (
+                        <p className="text-xs text-primary mt-1">Lista: {client.price_list}</p>
+                      )}
                     </div>
                   ))}
+                  {filteredClients.length === 0 && searchClient && (
+                    <p className="text-center text-muted-foreground py-4">No se encontraron clientes</p>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
 
+          {/* Cart Summary */}
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <ShoppingCart className="h-5 w-5" />
                 Carrito ({cart.length})
@@ -328,7 +369,7 @@ const POS = () => {
                   <div key={item.barcode} className="flex justify-between items-center p-2 border rounded-md" data-testid={`cart-item-${index}`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.product_name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">${item.unit_price.toFixed(2)} c/u</p>
+                      <p className="text-xs text-muted-foreground font-mono">${item.unit_price.toLocaleString()} c/u</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -371,15 +412,15 @@ const POS = () => {
               <div className="border-t pt-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal:</span>
-                  <span className="font-mono" data-testid="cart-subtotal">${totals.subtotal.toFixed(2)}</span>
+                  <span className="font-mono" data-testid="cart-subtotal">${totals.subtotal.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>IVA:</span>
-                  <span className="font-mono" data-testid="cart-tax">${totals.totalTax.toFixed(2)}</span>
+                  <span className="font-mono" data-testid="cart-tax">${totals.totalTax.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
-                  <span className="font-mono" data-testid="cart-total">${totals.total.toFixed(2)}</span>
+                  <span className="font-mono" data-testid="cart-total">${totals.total.toLocaleString('es-CO', {minimumFractionDigits: 2})}</span>
                 </div>
               </div>
 
@@ -442,7 +483,7 @@ const POS = () => {
                   <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-md">
                     <p className="text-sm text-orange-400">
                       <Wallet className="h-4 w-4 inline mr-2" />
-                      La factura se registrará como crédito (fiado) y aparecerá en el módulo de Fios para gestionar los abonos.
+                      La factura se registrará como crédito (fiado) y aparecerá en el módulo de Fios.
                     </p>
                   </div>
                 )}
@@ -467,6 +508,72 @@ const POS = () => {
                   </>
                 )}
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column: Products (SECOND - After client selection) */}
+        <div className="lg:col-span-2">
+          <Card className={!selectedClient ? 'opacity-60' : ''}>
+            <CardHeader>
+              <CardTitle className="text-lg">Productos</CardTitle>
+              {!selectedClient && (
+                <p className="text-sm text-orange-400">Selecciona un cliente primero para ver los precios correctos</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Buscar producto por nombre o código..."
+                  value={searchProduct}
+                  onChange={(e) => setSearchProduct(e.target.value)}
+                  className="pl-10"
+                  disabled={!selectedClient}
+                  data-testid="pos-search-product-input"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[65vh] overflow-y-auto">
+                {filteredProducts.map((product, index) => {
+                  const price = getProductPrice(product);
+                  const inCart = cart.find(item => item.barcode === product.barcode);
+                  
+                  return (
+                    <Card
+                      key={product.barcode}
+                      className={`cursor-pointer transition-all hover:border-primary ${
+                        !selectedClient ? 'pointer-events-none' : ''
+                      } ${inCart ? 'border-green-500 bg-green-500/5' : ''}`}
+                      onClick={() => addToCart(product)}
+                      data-testid={`pos-product-${index}`}
+                    >
+                      <CardContent className="p-4">
+                        <p className="font-semibold text-sm truncate">{product.name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{product.barcode}</p>
+                        <div className="flex justify-between items-center mt-2">
+                          <p className="text-sm font-mono font-bold text-primary">
+                            ${price.toLocaleString()}
+                          </p>
+                          <p className={`text-xs ${product.stock > 0 ? 'text-muted-foreground' : 'text-red-500'}`}>
+                            Stock: {product.stock}
+                          </p>
+                        </div>
+                        {inCart && (
+                          <div className="mt-2 text-xs text-green-500 font-medium">
+                            ✓ En carrito: {inCart.quantity}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              {filteredProducts.length === 0 && (
+                <p className="text-center text-muted-foreground py-8">No se encontraron productos</p>
+              )}
             </CardContent>
           </Card>
         </div>
