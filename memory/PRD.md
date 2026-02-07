@@ -47,6 +47,7 @@ Build a responsive web application named "Boltrex" for inventory and sales manag
   - Shared dialogs (Categories, Clients, Users): Separated Dialog from trigger button so both Create and Edit work independently
   - Sidebar navigation already filtered by read permissions (Layout.js)
   - Testing: 100% pass rate on all pages with testing agent
+- **Bug Fix:** Client creation with empty email field now works correctly (empty string converted to null via Pydantic validator)
 
 ## Credentials
 - Admin: admin@boltrex.com / admin (Administrador role, all permissions)
