@@ -169,7 +169,7 @@ const RolesPermissions = () => {
                                 <button
                                   key={perm}
                                   onClick={() => handleTogglePermission(role.name, module.slug, perm)}
-                                  disabled={!role.is_active || !module.is_active}
+                                  disabled={!role.is_active || !module.is_active || !canUpdatePerm('permissions')}
                                   className={`flex items-center justify-between px-2 py-1 text-xs rounded transition-colors ${
                                     hasPermission(role.name, module.slug, perm)
                                       ? 'bg-chart-1/20 text-chart-1'
@@ -199,13 +199,14 @@ const RolesPermissions = () => {
         <TabsContent value="roles" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold">Roles del Sistema</h2>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuevo Rol
-                </Button>
-              </DialogTrigger>
+            {canCreateRole('permissions') && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Nuevo Rol
+                  </Button>
+                </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Nuevo Rol</DialogTitle>
@@ -251,6 +252,7 @@ const RolesPermissions = () => {
                 </form>
               </DialogContent>
             </Dialog>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

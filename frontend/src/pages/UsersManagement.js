@@ -173,13 +173,15 @@ const UsersManagement = () => {
           <h1 className="text-4xl font-bold tracking-tight">Gestión de Usuarios</h1>
           <p className="text-muted-foreground mt-2">Administra usuarios y sus accesos</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()} data-testid="create-user-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Usuario
-            </Button>
-          </DialogTrigger>
+        {canCreate('users') && (
+          <Button onClick={() => handleOpenDialog()} data-testid="create-user-button">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Usuario
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent data-testid="user-dialog">
             <DialogHeader>
               <DialogTitle>{editMode ? 'Editar Usuario' : 'Nuevo Usuario'}</DialogTitle>
@@ -268,8 +270,7 @@ const UsersManagement = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="mb-6">
         <div className="relative">
@@ -323,35 +324,41 @@ const UsersManagement = () => {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenRoleDialog(user)}
-                      data-testid={`assign-roles-${index}`}
-                      title="Asignar Roles"
-                    >
-                      <Shield className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(user)}
-                      data-testid={`edit-user-${index}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleToggleActive(user.email, user.is_active)}
-                      data-testid={`toggle-user-${index}`}
-                    >
-                      {user.is_active ? (
-                        <UserX className="h-4 w-4" />
-                      ) : (
-                        <UserCheck className="h-4 w-4" />
-                      )}
-                    </Button>
+                    {canUpdate('users') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenRoleDialog(user)}
+                        data-testid={`assign-roles-${index}`}
+                        title="Asignar Roles"
+                      >
+                        <Shield className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canUpdate('users') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(user)}
+                        data-testid={`edit-user-${index}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canUpdate('users') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleToggleActive(user.email, user.is_active)}
+                        data-testid={`toggle-user-${index}`}
+                      >
+                        {user.is_active ? (
+                          <UserX className="h-4 w-4" />
+                        ) : (
+                          <UserCheck className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

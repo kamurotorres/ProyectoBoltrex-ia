@@ -290,14 +290,16 @@ const TicketConfig = () => {
             <RefreshCw className="h-4 w-4 mr-2" />
             Restablecer
           </Button>
-          <Button type="submit" disabled={saving} data-testid="save-config-btn">
-            {saving ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Guardar Configuración
-          </Button>
+          {canUpdate('ticket-config') && (
+            <Button type="submit" disabled={saving} data-testid="save-config-btn">
+              {saving ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Guardar Configuración
+            </Button>
+          )}
         </div>
       </form>
     </div>

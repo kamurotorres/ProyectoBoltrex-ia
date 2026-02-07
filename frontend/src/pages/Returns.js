@@ -121,13 +121,15 @@ const Returns = () => {
           <h1 className="text-4xl font-bold tracking-tight">Devoluciones</h1>
           <p className="text-muted-foreground mt-2">Gestión de devoluciones de ventas</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setDialogOpen(true)} data-testid="create-return-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Devolución
-            </Button>
-          </DialogTrigger>
+        {canCreate('returns') && (
+          <Button onClick={() => setDialogOpen(true)} data-testid="create-return-button">
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Devolución
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="return-dialog">
             <DialogHeader>
               <DialogTitle>Nueva Devolución</DialogTitle>
@@ -257,8 +259,7 @@ const Returns = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="border rounded-md">
         <Table>
