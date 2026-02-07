@@ -73,6 +73,32 @@ async def seed_database():
     await db.tax_rates.insert_many(tax_rates)
     print(f"✅ Created {len(tax_rates)} tax rates")
     
+    # Seed Payment Methods
+    payment_methods = [
+        {"name": "Efectivo", "description": "Pago en efectivo", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
+        {"name": "Tarjeta de Crédito", "description": "Pago con tarjeta de crédito", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
+        {"name": "Tarjeta de Débito", "description": "Pago con tarjeta débito", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
+        {"name": "Transferencia", "description": "Transferencia bancaria", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
+        {"name": "Nequi", "description": "Pago por Nequi", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()},
+        {"name": "Daviplata", "description": "Pago por Daviplata", "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()}
+    ]
+    await db.payment_methods.insert_many(payment_methods)
+    print(f"✅ Created {len(payment_methods)} payment methods")
+    
+    # Seed Default Ticket Config
+    ticket_config = {
+        "company_name": "Mi Empresa",
+        "nit": "",
+        "phone": "",
+        "email": "",
+        "address": "",
+        "ticket_width": 80,
+        "footer_message": "¡Gracias por su compra!",
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.ticket_config.insert_one(ticket_config)
+    print("✅ Created default ticket config")
+    
     client.close()
     print("🎉 Database seeded successfully!")
 
