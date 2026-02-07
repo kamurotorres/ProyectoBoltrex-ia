@@ -95,13 +95,15 @@ const Suppliers = () => {
           <h1 className="text-4xl font-bold tracking-tight">Proveedores</h1>
           <p className="text-muted-foreground mt-2">Gestiona tus proveedores</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setDialogOpen(true)} data-testid="create-supplier-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Proveedor
-            </Button>
-          </DialogTrigger>
+        {canCreate('suppliers') && (
+          <Button onClick={() => setDialogOpen(true)} data-testid="create-supplier-button">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Proveedor
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent data-testid="supplier-dialog">
             <DialogHeader>
               <DialogTitle>Nuevo Proveedor</DialogTitle>
@@ -169,8 +171,7 @@ const Suppliers = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="mb-6">
         <div className="relative">

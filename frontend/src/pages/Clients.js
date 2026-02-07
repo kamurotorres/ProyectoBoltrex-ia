@@ -156,13 +156,15 @@ const Clients = () => {
           <h1 className="text-4xl font-bold tracking-tight">Clientes</h1>
           <p className="text-muted-foreground mt-2">Gestiona tu base de clientes</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()} data-testid="create-client-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nuevo Cliente
-            </Button>
-          </DialogTrigger>
+        {canCreate('clients') && (
+          <Button onClick={() => handleOpenDialog()} data-testid="create-client-button">
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Cliente
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="client-dialog">
             <DialogHeader>
               <DialogTitle>{editMode ? 'Editar Cliente' : 'Nuevo Cliente'}</DialogTitle>
@@ -320,8 +322,7 @@ const Clients = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="mb-6">
         <div className="relative">
@@ -369,14 +370,16 @@ const Clients = () => {
                         <MapPin className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenDialog(client)}
-                      data-testid={`edit-client-${index}`}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    {canUpdate('clients') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(client)}
+                        data-testid={`edit-client-${index}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>

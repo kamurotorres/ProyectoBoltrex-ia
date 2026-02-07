@@ -104,13 +104,15 @@ const Categories = () => {
           <h1 className="text-4xl font-bold tracking-tight">Categorías</h1>
           <p className="text-muted-foreground mt-2">Gestiona las categorías de productos</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()} data-testid="create-category-button">
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Categoría
-            </Button>
-          </DialogTrigger>
+        {canCreate('categories') && (
+          <Button onClick={() => handleOpenDialog()} data-testid="create-category-button">
+            <Plus className="h-4 w-4 mr-2" />
+            Nueva Categoría
+          </Button>
+        )}
+      </div>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent data-testid="category-dialog">
             <DialogHeader>
               <DialogTitle>{editMode ? 'Editar Categoría' : 'Nueva Categoría'}</DialogTitle>
@@ -151,8 +153,7 @@ const Categories = () => {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
       <div className="mb-6">
         <div className="relative">
@@ -175,22 +176,26 @@ const Categories = () => {
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-lg font-semibold">{category.name}</h3>
                 <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleOpenDialog(category)}
-                    data-testid={`edit-category-${index}`}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(category.name)}
-                    data-testid={`delete-category-${index}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {canUpdate('categories') && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleOpenDialog(category)}
+                      data-testid={`edit-category-${index}`}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {canDelete('categories') && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(category.name)}
+                      data-testid={`delete-category-${index}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               {category.description && (
