@@ -649,7 +649,7 @@ const POS = () => {
                     className="w-full h-14 text-lg mt-4"
                     size="lg"
                     onClick={handleCheckout}
-                    disabled={cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod)}
+                    disabled={cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod) || !canCreate('pos')}
                     data-testid="checkout-button"
                   >
                     {paymentStatus === 'pagado' ? (

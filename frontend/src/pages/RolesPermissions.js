@@ -174,7 +174,7 @@ const RolesPermissions = () => {
                                     hasPermission(role.name, module.slug, perm)
                                       ? 'bg-chart-1/20 text-chart-1'
                                       : 'bg-muted text-muted-foreground'
-                                  } ${role.is_active && module.is_active ? 'hover:opacity-80 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                                  } ${role.is_active && module.is_active && canUpdatePerm('permissions') ? 'hover:opacity-80 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
                                 >
                                   <span className="capitalize">{perm}</span>
                                   {hasPermission(role.name, module.slug, perm) ? (

@@ -245,7 +245,7 @@ const Import = () => {
                         <Button
                           type="button"
                           className="w-full"
-                          disabled={loading}
+                          disabled={loading || !canCreate('import')}
                           onClick={() => document.getElementById(`file-input-${module.id}`).click()}
                           data-testid={`upload-button-${module.id}`}
                         >
