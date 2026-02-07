@@ -120,6 +120,8 @@ DEFAULT_MODULES = [
     {"name": "Devoluciones", "slug": "returns", "description": "Gestión de devoluciones"},
     {"name": "POS", "slug": "pos", "description": "Punto de venta"},
     {"name": "Facturas", "slug": "invoices", "description": "Listado y consulta de facturas"},
+    {"name": "Fios (Créditos)", "slug": "fios", "description": "Gestión de cuentas por cobrar y abonos"},
+    {"name": "Formas de Pago", "slug": "payment-methods", "description": "Gestión de formas de pago"},
     {"name": "Config. Tickets", "slug": "ticket-config", "description": "Configuración de tickets de impresión"},
     {"name": "Inventario", "slug": "inventory", "description": "Control de inventario"},
     {"name": "Reportes", "slug": "reports", "description": "Reportes y estadísticas"},
@@ -147,6 +149,8 @@ DEFAULT_ROLES = [
             "clients": Permission(read=True, create=True, update=True),
             "pos": Permission(read=True, create=True),
             "invoices": Permission(read=True),
+            "fios": Permission(read=True, create=True),
+            "payment-methods": Permission(read=True),
             "inventory": Permission(read=True),
             "reports": Permission(read=True)
         }
@@ -164,6 +168,8 @@ DEFAULT_ROLES = [
             "returns": Permission(read=True, create=True),
             "pos": Permission(read=True, create=True),
             "invoices": Permission(read=True),
+            "fios": Permission(read=True, create=True, update=True),
+            "payment-methods": Permission(read=True, create=True, update=True),
             "ticket-config": Permission(read=True, update=True),
             "inventory": Permission(read=True),
             "reports": Permission(read=True)
