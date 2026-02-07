@@ -16,8 +16,10 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Categories = () => {
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

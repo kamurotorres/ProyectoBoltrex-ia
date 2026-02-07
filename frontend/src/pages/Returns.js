@@ -24,8 +24,10 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Returns = () => {
+  const { canCreate } = usePermissions();
   const [returns, setReturns] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);

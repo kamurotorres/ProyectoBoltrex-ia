@@ -24,8 +24,10 @@ import {
 } from '@/components/ui/table';
 import { Plus, Trash2, Search, Package, Truck } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Purchases = () => {
+  const { canCreate } = usePermissions();
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);

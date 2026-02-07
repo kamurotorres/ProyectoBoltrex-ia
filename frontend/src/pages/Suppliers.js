@@ -23,8 +23,10 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Suppliers = () => {
+  const { canCreate } = usePermissions();
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

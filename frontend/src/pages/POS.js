@@ -14,8 +14,10 @@ import {
 } from '@/components/ui/select';
 import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, User, AlertCircle, Package } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const POS = () => {
+  const { canCreate } = usePermissions();
   const [products, setProducts] = useState([]);
   const [clients, setClients] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);

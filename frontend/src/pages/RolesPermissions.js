@@ -18,8 +18,10 @@ import {
 import { Plus, Shield, Settings, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const RolesPermissions = () => {
+  const { canCreate: canCreateRole, canUpdate: canUpdatePerm } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [modules, setModules] = useState([]);
   const [permissions, setPermissions] = useState({});

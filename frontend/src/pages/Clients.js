@@ -30,8 +30,10 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, Edit, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Clients = () => {
+  const { canCreate, canUpdate } = usePermissions();
   const [clients, setClients] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [priceLists, setPriceLists] = useState([]);

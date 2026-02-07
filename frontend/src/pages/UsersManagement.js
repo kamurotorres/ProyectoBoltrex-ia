@@ -31,8 +31,10 @@ import {
 import { Plus, Search, Edit, UserX, UserCheck, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const UsersManagement = () => {
+  const { canCreate, canUpdate } = usePermissions();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [search, setSearch] = useState('');

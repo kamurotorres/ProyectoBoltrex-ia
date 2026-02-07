@@ -32,8 +32,10 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { API } from '@/App';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const TicketConfig = () => {
+  const { canUpdate } = usePermissions();
   const [config, setConfig] = useState({
     company_name: '',
     nit: '',

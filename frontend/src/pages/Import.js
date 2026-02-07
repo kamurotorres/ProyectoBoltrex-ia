@@ -15,8 +15,10 @@ import {
 import { Upload, Download, FileText, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Import = () => {
+  const { canCreate } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [activeTab, setActiveTab] = useState('categories');
