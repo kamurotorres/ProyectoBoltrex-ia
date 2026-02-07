@@ -140,8 +140,8 @@
 - **Admin:** admin@boltrex.com / admin123
 
 ## URLs
-- **Frontend:** https://boltrex-inventory.preview.emergentagent.com
-- **Backend API:** https://boltrex-inventory.preview.emergentagent.com/api
+- **Frontend:** https://boltrex-inv.preview.emergentagent.com
+- **Backend API:** https://boltrex-inv.preview.emergentagent.com/api
 
 ## Changelog
 

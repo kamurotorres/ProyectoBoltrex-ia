@@ -1,169 +1,177 @@
 <analysis>**original_problem_statement:**
-The user wants to build a responsive web application named Boltrex for inventory and sales management. The application must have an API-first architecture.
+The user wants to build a responsive web application named Boltrex for inventory and sales management with an API-first architecture.
 
 **PRODUCT REQUIREMENTS:**
 
 1.  **Core Modules:**
-    *   **Authentication & RBAC:** JWT-based authentication. Granular user and role management (Users, Roles, System Modules, Permissions matrix for Create, Read, Update, Delete per role/module). Users can be assigned multiple roles.
-    *   **Product Management:** CRUD for products with unique barcode, name, description, category, purchase price, and applicable VAT.
-    *   **Pricing:** Products can have multiple sale prices associated with price lists. Each client can be assigned a price list.
-    *   **Categories:** CRUD for product categories.
-    *   **Client Management:** CRUD for clients with various fields including geolocation. Document types (e.g., ID card, NIT) should be manageable in a separate section.
-    *   **POS Invoicing:** Create POS invoices with automatic consecutive numbering. Search for clients and products. Automatically apply prices based on the client's price list and calculate taxes.
-    *   **Returns:** A section to look up invoices and process partial or total returns, which should automatically update inventory.
-    *   **Suppliers & Purchases:** Manage suppliers and register product purchases, which should update inventory and purchase costs.
-    *   **Inventory:** Real-time stock control and a complete history of movements (purchases, sales, returns, adjustments).
-    *   **Reports:** List of sales with filters (date, client, user). Inventory movement history. Export reports to CSV/Excel.
-    *   **VAT Management:** A section to manage VAT values, with only one being active at a time.
-    *   **Data Import:** A module to bulk-import data (clients, suppliers, products, categories) from CSV and Excel files.
+    *   Authentication & RBAC, Product Management, Pricing, Categories, Client Management, POS Invoicing, Returns, Suppliers & Purchases, Inventory, Reports, VAT Management, Data Import.
 
 2.  **POS Invoice & PDF Ticket Generation:**
-    *   **Invoice List:** A module to list and filter all past POS invoices (by date, client, user, invoice number).
-    *   **PDF Ticket Generation:** Upon processing a sale, automatically generate a PDF ticket (thermal printer format, e.g., 58mm/80mm).
-    *   **Ticket Configuration:** A settings module to dynamically configure the ticket header (company name, NIT, phone, etc.) without code changes.
-    *   **RBAC Integration:** The new modules (Invoices, Ticket Configuration) must be integrated into the existing permission system.
+    *   List and filter past POS invoices.
+    *   Automatically generate a PDF ticket (58mm/80mm format) upon sale.
+    *   A settings module to dynamically configure the ticket header.
+    *   RBAC integration for the new modules.
 
-3.  **Technical Requirements:**
-    *   API-first architecture with well-structured REST endpoints for all functionalities.
-    *   Fully responsive web interface.
-    *   Scalable and modular architecture.
-    *   Dark mode UI theme.
+3.  **Payment and Credit (Fios) Management:**
+    *   A Payment Methods module to manage , , etc.
+    *   In the POS module, select a payment method for Pagado invoices. Invoices can also be marked as Por cobrar (credit).
+    *   A Fios (Credits) module to list clients with outstanding balances and register payments (abonos).
+    *   When a return is processed on a Por cobrar invoice, the balance must be updated. If the balance reaches zero, the invoice status should automatically change to Pagado.
+
+4.  **UX/UI Improvements:**
+    *   **Purchases:** Convert supplier and product dropdowns into autocomplete search fields.
+    *   **POS:**
+        *   Place the client selection section before the product section and make it mandatory.
+        *   Fix a bug where cart totals do not update when adding an existing item.
+        *   Redesign the layout to give client and product/cart sections full width for better scalability.
+        *   Product and client lists should only show results after the user starts searching.
+
+5.  **Data Seeding:**
+    *   Ensure all modules (including new ones like  and ) are included in the initial database seeding scripts (, ).
 
 **User's preferred language**: Spanish
 
 **what currently exists?**
-A full-stack application (FastAPI backend, React frontend, MongoDB database) named Boltrex. The following modules have been implemented:
-*   **Backend:**
-    *   REST APIs for authentication, products, categories, clients, POS sales, suppliers, purchases, inventory, data import, and a complete Role-Based Access Control (RBAC) system.
-    *   Database models and business logic for all core features.
-    *   Data seeding scripts for initial setup (, ).
-*   **Frontend:**
-    *   A responsive dark-mode UI with pages for Login, Dashboard, Products, Categories, Clients, POS, Inventory, Reports, Suppliers, Purchases, Returns, Data Import, User Management, and Roles/Permissions.
-    *   A global state context to manage user authentication and permissions.
-    *   A custom hook  has been created to control UI elements based on user permissions, but it has only been implemented on the  page as a proof-of-concept.
+A full-stack Boltrex application (FastAPI, React, MongoDB) with a comprehensive set of features. All originally requested core modules are implemented. The application now includes modules for listing invoices, generating PDF tickets, managing payment methods, and handling customer credit (Fios). The UI for POS and Purchases has been significantly improved with autocomplete and layout changes. The backend logic for returns has been enhanced to correctly update credit invoices. The database seeding scripts have been updated to be comprehensive. However, the frontend-wide RBAC implementation remains incomplete.
 
 **Last working item**:
-*   **Last item agent was working:** Implementing the module for listing POS Invoices and generating PDF tickets.
-*   **Status:** IN PROGRESS
-*   **Agent Testing Done:** N
-*   **Which testing method agent to use?** both
+*   **Last item agent was working:** The user reported that after resetting the project, the database seeding scripts were missing the newly added modules (, ). The agent updated  to include the modules in the default list, updated  to add default payment methods, and made the  script idempotent so it can add missing modules to an existing database.
+*   **Status:** COMPLETED
+*   **Agent Testing Done:** Y (Agent ran the scripts to confirm they worked.)
+*   **Which testing method agent to use?** NA
 *   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1:** The frontend permission control system is incomplete. (Priority: P1)
-
+*   **Issue 1:** The frontend permission control system is incomplete. (Priority: P0)
     *   **Issues Detail:**
-        *   **Description:** The agent created a  hook and demonstrated its use on the  page to show/hide the Create, Edit, and Delete buttons. However, this logic has not been applied to any other management pages (e.g., Categories, Clients, Users, etc.). As a result, users without the correct permissions might still see action buttons, even if the backend API calls would fail.
+        *   **Description:** The agent created a  hook, but it has only been implemented on the  page. This logic has not been applied to any other management pages (e.g., Categories, Clients, Users, Purchases, Invoices, etc.). Users without correct permissions might still see action buttons (Create, Edit, Delete), even if the backend API calls would fail. This was identified in the previous session and remains unaddressed.
         *   **Attempted fixes:** A proof-of-concept was successfully implemented in .
         *   **Next debug checklist:**
-            1.  Import the  hook in every management page (e.g., , , , etc.).
-            2.  Instantiate the hook: .
-            3.  Wrap all action buttons (Create, Edit, Delete, etc.) and other permission-sensitive elements in conditional rendering blocks based on the hook's return value (e.g., ).
-        *   **Why fix this issue and what will be achieved with the fix?** To ensure the user interface accurately reflects the user's permissions, providing a correct and secure user experience.
+            1.  Identify all pages with action buttons/links that need permission checks (e.g., , , , , , etc.).
+            2.  For each page, import the  hook: .
+            3.  Instantiate the hook: .
+            4.  Wrap all sensitive elements (e.g., , ) in conditional rendering blocks based on the hook's return value (e.g., ).
+        *   **Why fix this issue and what will be achieved with the fix?** To ensure the user interface accurately reflects the user's permissions, preventing confusion and providing a secure user experience.
         *   **Status:** NOT STARTED
-        *   **Is recurring issue?** N
+        *   **Is recurring issue?** Y
         *   **Should Test frontend/backend/both after fix?** Frontend
+        *   **Blocked on other issue:** None
 
 **In progress Task List**:
-*   **Task 1:** Complete the POS Invoice List and PDF Ticket Generation Module (Priority: P0)
-    *   **Where to resume:** The agent has created . The next step is to modify  to:
-        1.  Integrate the  into the existing POS sale creation endpoint to generate a PDF upon successful sale.
-        2.  Add new API endpoints for listing invoices with filters.
-        3.  Add an endpoint to get a single invoice's details.
-        4.  Add an endpoint to re-generate/re-download a ticket PDF for a past invoice.
-        5.  Add endpoints for the CRUD operations of the Ticket Configuration module.
-    *   **What will be achieved with this?** Users will be able to list, view, and get PDF receipts for their sales. The ticket header will be configurable from the UI.
-    *   **Status:** IN PROGRESS
-    *   **Should Test frontend/backend/both after fix?** Both
-    *   **Blocked on something:** No.
+None.
 
 **Upcoming and Future Tasks**
 *   **Upcoming Tasks:**
-    *   **(P0) Create Frontend for Invoice & Ticket Modules:** After implementing the backend, create the corresponding frontend pages:
-        *   A page to list/filter POS invoices ().
-        *   A page for configuring the ticket header ().
-        *   Update the main layout and routing to include these new pages.
-    *   **(P1) Roll out permission checks across all frontend pages:** Implement the  hook on all remaining pages to ensure UI elements are correctly shown/hidden based on roles. (This is also listed as a pending issue).
+    *   **(P0) Roll out permission checks across all frontend pages:** Implement the  hook on all remaining pages to ensure UI elements are correctly shown/hidden based on roles. (This is the same as the pending issue).
+*   **Future Tasks:**
+    *   **(P1)** A dashboard with sales graphs and reports.
+    *   **(P2)** A report for accounts receivable with alerts for overdue balances.
 
 **Completed work in this session**
-- **User Authentication & RBAC:** Implemented JWT login and a granular role-based access control system (, ).
-- **Core Modules:** Implemented backend and frontend for Products, Categories, Clients, POS, Inventory, Suppliers, and Purchases.
-- **Data Import:** Created a module to import data from CSV/Excel files for multiple entities (, updated ).
-- **Bug Fixes:**
-    - Resolved an issue where new user registrations were not reflected in the user management module.
-    - Fixed a critical bug where non-admin users could not log in due to an incorrect database collection being queried during token validation.
-- **Initial PDF Generation Setup:** Created the base file for PDF generation ().
-
-**Earlier issues found/mentioned but not fixed**
-None. All previously identified issues were addressed.
+- **Module: Invoice Listing & PDF Tickets:**
+    - Created backend endpoints and frontend page () to list, filter, and view invoice details.
+    - Integrated  to generate PDF tickets for sales. The ticket now also shows returned items with a negative sign.
+    - Created a backend endpoint and frontend page () to configure the ticket header.
+- **Module: Payment Methods & Fios (Credits):**
+    - Created backend endpoints and frontend page () for CRUD operations on payment methods.
+    - Created backend endpoints and frontend page () to manage customer credits, view balances, and register payments (abonos).
+    - Integrated payment status (Pagado, Por cobrar) and payment method selection into the POS workflow.
+- **Bug Fix: Fios Modal:** Fixed a bug where the Register Abono modal would not appear on the client detail screen, instead redirecting to the main list.
+- **Bug Fix: Returns on Credit Invoices:** Corrected the  endpoint to properly update the  and  of por cobrar invoices and automatically change their status to pagado if the balance becomes zero after a return.
+- **Bug Fix: POS Cart Update:** Fixed a bug where adding a product that was already in the cart would not correctly recalculate the subtotal, tax, and total.
+- **UX Overhaul: Purchases Page:** Replaced static dropdowns for Supplier and Product with dynamic, searchable autocomplete components ().
+- **UX Overhaul: POS Page:**
+    - Reordered the layout to prioritize client selection.
+    - Redesigned the layout to use full-width sections for better scalability.
+    - Implemented search-as-you-type functionality for both the client and product lists, hiding the lists until a search is initiated.
+- **Data Seeding Scripts:** Updated  and  to include  and  modules and make the RBAC initialization idempotent.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-*   **Backend:** FastAPI, MongoDB (using ), Pydantic, JWT for authentication, ReportLab for PDF generation.
-*   **Frontend:** React, React Router, Tailwind CSS, Shadcn/UI components.
+*   **Backend:** FastAPI, MongoDB (), Pydantic, JWT, ReportLab.
+*   **Frontend:** React, React Router, Tailwind CSS, Shadcn/UI,  for autocomplete.
 *   **Architecture:** API-first, modular full-stack application.
 
 **key DB schema**
-*   : {email, full_name, hashed_password, status, roles: [ObjectId('role_id')]}
-*   : {name, description, status, permissions: [{module_id, actions: {create, read, update, delete}}]}
-*   : {name, slug, description}
-*   : {barcode, name, description, category_id, purchase_price, tax_id, stock}
-*   : {doc_type, doc_number, first_name, last_name, email, phone, address, location}
-*   : {consecutive, client_id, user_id, items: [...], total, created_at}
-*   : {company_name, nit, phone, email, address}
+*   : { ..., payment_status: str, payment_method: str, amount_paid: float, balance: float, returns: [obj], payments: [obj] }
+*   : { invoice_number, items, total_returned, created_at }
+*   : { name, description, status }
+*   *No new collections for Fios; logic is derived from  and a new  sub-document.*
+
+**changes in tech stack**
+*   None. A  library (part of shadcn) was used for the autocomplete feature, but it was already an existing dependency.
 
 **All files of reference**
-*   : The main FastAPI server file, containing the majority of the application's endpoints. It has been modified multiple times to add new features and fix bugs.
-*   : Contains all endpoints related to the Role-Based Access Control system (users, roles, permissions).
-*   : Contains helper functions for the RBAC system, such as checking permissions.
-*   : Newly created file to handle PDF ticket generation using the ReportLab library.
-*   : The main React entry point, which handles routing and provides the authentication context to the application.
-*   : The main layout component containing the sidebar navigation, which is dynamically rendered based on user permissions.
-*   : A custom React hook created to easily check user permissions within frontend components.
-*   : This directory contains all the view components for the application's modules.
-*   : A script to initialize the database with default modules, roles, and permissions.
+*   : Heavily modified to add endpoints for invoices, ticket config, payment methods, fios (credits), and returns logic.
+*   : Updated with new module definitions (, ).
+*   : Modified to include returned items in the PDF.
+*   : Completely rewritten to improve layout, fix bugs, and change interaction patterns.
+*   : Completely rewritten to use autocomplete components.
+*   : New file for listing invoices and viewing their history.
+*   : New file for managing customer credits.
+*   : New file for managing payment methods.
+*   : New file for configuring ticket headers.
+*   : Updated to add routes for the new pages.
+*   : Updated to add navigation links for the new pages.
+*   : Updated to include all modules and be idempotent.
+*   : Updated to include default payment methods.
+
+**Areas that need refactoring**
+*   **Frontend-wide Permissions:** The  hook needs to be implemented across all relevant pages to provide a consistent and secure UI. This is the highest priority refactoring/implementation task.
 
 **key api endpoints**
-*   : POST, User login.
-*   : POST, New user registration.
-*   : POST, Imports data from CSV/Excel.
-*   : Endpoints for managing users, roles, and permissions.
-*   : POST, Create a new POS invoice.
-*   **(Upcoming)** : GET, List/filter invoices.
-*   **(Upcoming)** : GET, Download/regenerate a PDF ticket.
-*   **(Upcoming)** : GET/PUT, Manage ticket header configuration.
+*   : GET (List), POST (Create - modified)
+*   : GET (Details with history)
+*   : GET (Generate PDF ticket - modified)
+*   : GET, PUT (Manage ticket configuration)
+*   : GET, POST, PUT, DELETE (CRUD for payment methods)
+*   : GET (List clients with credit)
+*   : GET (Get credit history for a client)
+*   : POST (Register a payment/abono)
+*   : POST (Create a return - modified logic)
 
 **Critical Info for New Agent**
-*   **User Management:** The application now uses a single  collection in MongoDB for all user data. Previous bugs were caused by confusion between an old  collection and the new one. Ensure all new user-related logic uses .
-*   **Frontend Permissions:** The  hook () is the standard way to implement access control on the frontend. This hook must be used to conditionally render buttons and other interactive elements on all management pages. This work is incomplete and is a high-priority pending task.
-*   **PDF Generation:** The  library has been installed and a  file has been created. The next agent needs to build out the logic within this file and integrate it into the invoice creation flow.
+*   ** Hook:** The most critical pending task is rolling out the  hook across all frontend pages that have action buttons (Create, Edit, Delete, etc.). This is a known gap from the previous session and must be addressed to ensure UI-level security.
+*   **Seeding Scripts:** The  and  scripts are now up-to-date and idempotent. They can be run safely on new or existing databases to ensure all modules and default data are present.
+
+**documents and test reports created in this job**
+*   
+*   
+*   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Latest):** Requested a new module for listing POS invoices and generating downloadable/re-printable PDF tickets, along with a settings page for the ticket header.
-2.  **Agent:** Acknowledged the request and began implementation by creating .
-3.  **User:** Reported a Could not validate credentials error when non-admin users try to log in.
-4.  **Agent:** Correctly diagnosed the issue (JWT validation was using the wrong DB collection), fixed it in , and verified the fix.
-5.  **User:** Reported two issues: 1) Newly registered users don't appear in the user management module. 2) Changing a user's role does not correctly restrict their access to modules in the UI.
-6.  **Agent:** Fixed both issues by updating auth endpoints to use the correct  collection and by implementing permission-based filtering for the navigation menu in . Also created the  hook as a PoC.
-7.  **User:** Requested a detailed RBAC system for managing users, roles, and granular permissions.
-8.  **Agent:** Implemented the full RBAC system on both the backend and frontend, including new pages and database collections.
-9.  **User:** Requested a module to import data via CSV/Excel.
-10. **Agent:** Successfully implemented the data import module for both backend and frontend.
+1.  **User (latest):** Requested to add missing modules (, ) to the database seeding scripts. (Completed)
+2.  **User:** Requested that the client list in the POS module only show results after a search, similar to the product list. (Completed)
+3.  **User:** Requested to change the POS layout to be full-width and only show products after a search. (Completed)
+4.  **User:** Requested to fix the POS layout (client section first) and a bug where adding an existing item to the cart didn't update totals. (Completed)
+5.  **User:** Requested to change the Purchases page to use autocomplete for suppliers and products instead of dropdowns. (Completed)
+6.  **User:** Requested to modify the PDF ticket to show returned items. (Completed)
+7.  **User:** Requested to add Payment History and Return History sections to the invoice detail view. (Completed)
+8.  **User:** Reported a bug where returns on por cobrar invoices didn't update the balance in the Fios module. (Completed)
+9.  **User:** Reported a bug where the Register Abono modal was not appearing on the correct screen in the Fios module. (Completed)
+10. **User:** Requested the implementation of the Payment Methods and Fios (credit) module. (Completed)
 
 **Project Health Check:**
-*   **Working:** Core CRUD functionalities, Data Import, User Authentication, RBAC backend logic.
-*   **Broken/Incomplete:** The frontend UI does not fully enforce permissions. While the navigation menu is filtered, action buttons (Create, Edit, Delete) are not conditionally rendered on most pages, leading to a misleading UI for restricted users.
+*   **Working:** Core CRUD, Authentication, RBAC (backend), Data Import, Invoice Listing, PDF Generation, Payment Methods, Credit (Fios) Management, Returns, POS, Purchases.
+*   **Broken/Incomplete:** Frontend RBAC is incomplete. UI elements on most pages do not respect user permissions, creating a misleading and insecure user experience.
 
 **3rd Party Integrations**
-*   None explicitly integrated yet, but the user has mentioned an interest in potential future integrations.
+*   None.
 
 **Testing status**
-*   **Testing agent used after significant changes:** NO
+*   **Testing agent used after significant changes:** YES (Twice, for the Invoice/Ticket module and the Payment/Fios module).
 *   **Troubleshoot agent used after agent stuck in loop:** NO
-*   **Test files created:** The agent created several temporary bash scripts during the session to perform manual API tests. No permanent test files exist in a  directory.
+*   **Test files created:**
+    *   
+    *   
 *   **Known regressions:** None.
 
+**Credentials to test flow:**
+Use the standard login credentials used during the session:
+*   **Email:** 
+*   **Password:** 
+
 **What agent forgot to execute**
-The agent did not complete the rollout of the frontend permission checks. After creating the  hook and applying it to the  page as a proof-of-concept, it did not apply the same logic to the other management pages (e.g., Categories, Clients, Users, Roles), leaving the UI permission controls incomplete.</analysis>
+The agent has consistently failed to implement the  hook across all frontend pages. This was a high-priority pending item from the previous session and remains the most significant piece of unfinished work, impacting the application's UI security and integrity.</analysis>
