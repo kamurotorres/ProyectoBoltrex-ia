@@ -252,12 +252,14 @@ const POS = () => {
       ).slice(0, 10)
     : [];
 
-  const filteredClients = clients.filter(c =>
-    searchClient === '' ||
-    c.document_number.toLowerCase().includes(searchClient.toLowerCase()) ||
-    c.first_name.toLowerCase().includes(searchClient.toLowerCase()) ||
-    c.last_name.toLowerCase().includes(searchClient.toLowerCase())
-  ).slice(0, 8);
+  // Only show clients when user is searching (min 2 characters)
+  const filteredClients = searchClient.length >= 2
+    ? clients.filter(c =>
+        c.document_number.toLowerCase().includes(searchClient.toLowerCase()) ||
+        c.first_name.toLowerCase().includes(searchClient.toLowerCase()) ||
+        c.last_name.toLowerCase().includes(searchClient.toLowerCase())
+      ).slice(0, 10)
+    : [];
 
   const totals = calculateTotals();
 
