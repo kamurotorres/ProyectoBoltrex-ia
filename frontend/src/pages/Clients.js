@@ -250,6 +250,7 @@ const Clients = () => {
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
                       data-testid="client-email-input"
                     />
                   </div>
