@@ -70,7 +70,8 @@ const Layout = () => {
     { path: '/payment-methods', icon: CreditCard, label: 'Formas de Pago', moduleSlug: 'payment-methods' },
     { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
     { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' },
-    { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' }
+    { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' },
+    { path: '/settings', icon: Settings, label: 'Config. Sistema', moduleSlug: 'permissions' }
   ];
 
   // Filter nav items based on user permissions

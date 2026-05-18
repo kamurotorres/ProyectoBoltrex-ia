@@ -1869,6 +1869,109 @@ async def get_invoice_ticket(invoice_number: str, current_user: User = Depends(g
         }
     )
 
+# ==================== FACTORY RESET ====================
+
+class FactoryResetRequest(BaseModel):
+    password: str
+
+@api_router.post("/system/factory-reset")
+async def factory_reset(request: FactoryResetRequest, current_user: User = Depends(get_current_user)):
+    # 1. Verify user has Administrador role
+    user_doc = await db.users_extended.find_one({"email": current_user.email})
+    if not user_doc or "Administrador" not in user_doc.get("roles", []):
+        raise HTTPException(status_code=403, detail="Solo los administradores pueden restablecer el sistema")
+
+    # 2. Verify password
+    if not verify_password(request.password, user_doc["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+
+    # 3. Clear all data collections
+    collections_to_clear = [
+        "products", "categories", "clients", "suppliers",
+        "purchases", "returns", "invoices", "payment_methods",
+        "inventory_movements", "ticket_config", "tax_rates",
+        "price_lists", "document_types"
+    ]
+    for col in collections_to_clear:
+        await db[col].delete_many({})
+
+    # 4. Clear users EXCEPT admin@boltrex.com
+    await db.users_extended.delete_many({"email": {"$ne": "admin@boltrex.com"}})
+    await db.users.delete_many({"email": {"$ne": "admin@boltrex.com"}})
+
+    # 5. Clear RBAC (roles, permissions, modules) to re-seed cleanly
+    await db.roles.delete_many({})
+    await db.role_permissions.delete_many({})
+    await db.system_modules.delete_many({})
+
+    # 6. Re-seed: RBAC
+    from rbac import DEFAULT_MODULES, DEFAULT_ROLES
+    for mod in DEFAULT_MODULES:
+        mod_dict = mod.copy()
+        mod_dict["is_active"] = True
+        mod_dict["created_at"] = datetime.now(timezone.utc).isoformat()
+        await db.system_modules.insert_one(mod_dict)
+
+    for role_data in DEFAULT_ROLES:
+        role = {
+            "name": role_data["name"],
+            "description": role_data["description"],
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.roles.insert_one(role)
+        for module_slug, permissions in role_data["permissions"].items():
+            perm_doc = {
+                "role_name": role_data["name"],
+                "module_slug": module_slug,
+                "permissions": {
+                    "read": permissions.read,
+                    "create": permissions.create,
+                    "update": permissions.update,
+                    "delete": permissions.delete
+                },
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.role_permissions.insert_one(perm_doc)
+
+    # 7. Re-seed: Data
+    now = datetime.now(timezone.utc).isoformat()
+    await db.categories.insert_many([
+        {"name": "Electrónica", "description": "Dispositivos electrónicos y accesorios", "created_at": now},
+        {"name": "Alimentos", "description": "Productos alimenticios", "created_at": now},
+        {"name": "Bebidas", "description": "Bebidas y refrescos", "created_at": now},
+        {"name": "Hogar", "description": "Artículos para el hogar", "created_at": now},
+        {"name": "Otros", "description": "Otros productos", "created_at": now}
+    ])
+    await db.document_types.insert_many([
+        {"code": "CC", "name": "Cédula de Ciudadanía", "created_at": now},
+        {"code": "NIT", "name": "NIT", "created_at": now},
+        {"code": "CE", "name": "Cédula de Extranjería", "created_at": now},
+        {"code": "PAS", "name": "Pasaporte", "created_at": now}
+    ])
+    await db.price_lists.insert_many([
+        {"name": "default", "description": "Lista de precios por defecto", "is_active": True, "created_at": now},
+        {"name": "mayorista", "description": "Precios para mayoristas", "is_active": True, "created_at": now},
+        {"name": "minorista", "description": "Precios para minoristas", "is_active": True, "created_at": now}
+    ])
+    await db.tax_rates.insert_many([
+        {"name": "IVA 19%", "rate": 19.0, "is_active": True, "effective_date": now, "created_at": now}
+    ])
+    await db.payment_methods.insert_many([
+        {"name": "Efectivo", "description": "Pago en efectivo", "is_active": True, "created_at": now},
+        {"name": "Tarjeta de Crédito", "description": "Pago con tarjeta de crédito", "is_active": True, "created_at": now},
+        {"name": "Tarjeta de Débito", "description": "Pago con tarjeta débito", "is_active": True, "created_at": now},
+        {"name": "Transferencia", "description": "Transferencia bancaria", "is_active": True, "created_at": now},
+        {"name": "Nequi", "description": "Pago por Nequi", "is_active": True, "created_at": now},
+        {"name": "Daviplata", "description": "Pago por Daviplata", "is_active": True, "created_at": now}
+    ])
+    await db.ticket_config.insert_one({
+        "company_name": "Mi Empresa", "nit": "", "phone": "", "email": "",
+        "address": "", "ticket_width": 80, "footer_message": "¡Gracias por su compra!", "updated_at": now
+    })
+
+    return {"message": "Sistema restablecido a valores de fábrica exitosamente"}
+
 # Include the routers
 app.include_router(api_router)
 

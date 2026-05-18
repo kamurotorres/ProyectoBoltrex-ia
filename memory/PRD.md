@@ -49,6 +49,18 @@ Build a responsive web application named "Boltrex" for inventory and sales manag
   - Testing: 100% pass rate on all pages with testing agent
 - **Bug Fix:** Client creation with empty email field now works correctly (empty string converted to null via Pydantic validator, removed erroneous `required` attribute from email input in Clients.js)
 
+### Session 3 (May 18, 2026)
+- **Bug Fix:** Client email field `required` removed from frontend (caused black screen on empty email submit)
+- **Feature:** Delete button added to Clients page (backend `DELETE /api/clients/{document_number}` + frontend with RBAC)
+- **Feature:** Full CRUD for Suppliers (added `PUT /api/suppliers/{name}`, `DELETE /api/suppliers/{name}`, SupplierUpdate model, edit/delete buttons with RBAC)
+- **Feature: Factory Reset** - Complete system reset functionality:
+  - Backend: `POST /api/system/factory-reset` with admin role + password verification
+  - Protects admin@boltrex.com from deletion
+  - Clears 13 data collections + users (except admin) + RBAC
+  - Re-seeds: categories, document types, price lists, tax rates, payment methods, ticket config, RBAC modules/roles/permissions
+  - Frontend: New `FactoryReset.js` page at `/settings` with danger zone card, confirmation modal with warning, component list, and password input
+  - Added to sidebar as "Config. Sistema"
+
 ## Credentials
 - Admin: admin@boltrex.com / admin (Administrador role, all permissions)
 
