@@ -20,12 +20,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit } from 'lucide-react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const Suppliers = () => {
-  const { canCreate } = usePermissions();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,8 +58,13 @@ const Suppliers = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/suppliers`, formData);
-      toast.success('Proveedor creado');
+      if (editMode) {
+        await axios.put(`${API}/suppliers/${encodeURIComponent(currentSupplier.name)}`, formData);
+        toast.success('Proveedor actualizado');
+      } else {
+        await axios.post(`${API}/suppliers`, formData);
+        toast.success('Proveedor creado');
+      }
       fetchSuppliers();
       handleCloseDialog();
     } catch (error) {
@@ -67,17 +72,41 @@ const Suppliers = () => {
     }
   };
 
+  const handleOpenDialog = (supplier = null) => {
+    if (supplier) {
+      setEditMode(true);
+      setCurrentSupplier(supplier);
+      setFormData({
+        name: supplier.name,
+        contact_name: supplier.contact_name || '',
+        phone: supplier.phone || '',
+        email: supplier.email || '',
+        address: supplier.address || ''
+      });
+    } else {
+      setEditMode(false);
+      setCurrentSupplier(null);
+      setFormData({ name: '', contact_name: '', phone: '', email: '', address: '' });
+    }
+    setDialogOpen(true);
+  };
+
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditMode(false);
     setCurrentSupplier(null);
-    setFormData({
-      name: '',
-      contact_name: '',
-      phone: '',
-      email: '',
-      address: ''
-    });
+    setFormData({ name: '', contact_name: '', phone: '', email: '', address: '' });
+  };
+
+  const handleDelete = async (supplierName) => {
+    if (!window.confirm('¿Estás seguro de eliminar este proveedor?')) return;
+    try {
+      await axios.delete(`${API}/suppliers/${encodeURIComponent(supplierName)}`);
+      toast.success('Proveedor eliminado');
+      fetchSuppliers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar proveedor');
+    }
   };
 
   const filteredSuppliers = suppliers.filter(s =>
@@ -95,7 +124,7 @@ const Suppliers = () => {
           <p className="text-muted-foreground mt-2">Gestiona tus proveedores</p>
         </div>
         {canCreate('suppliers') && (
-          <Button onClick={() => setDialogOpen(true)} data-testid="create-supplier-button">
+          <Button onClick={() => handleOpenDialog()} data-testid="create-supplier-button">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Proveedor
           </Button>
@@ -103,73 +132,73 @@ const Suppliers = () => {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent data-testid="supplier-dialog">
-            <DialogHeader>
-              <DialogTitle>Nuevo Proveedor</DialogTitle>
-              <DialogDescription>Registra un nuevo proveedor</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4 py-4">
+        <DialogContent data-testid="supplier-dialog">
+          <DialogHeader>
+            <DialogTitle>{editMode ? 'Editar Proveedor' : 'Nuevo Proveedor'}</DialogTitle>
+            <DialogDescription>{editMode ? 'Modifica los datos del proveedor' : 'Registra un nuevo proveedor'}</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nombre de Empresa *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  data-testid="supplier-name-input"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact_name">Contacto</Label>
+                <Input
+                  id="contact_name"
+                  value={formData.contact_name}
+                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                  data-testid="supplier-contact-input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name">Nombre de Empresa *</Label>
+                  <Label htmlFor="phone">Teléfono</Label>
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    data-testid="supplier-name-input"
+                    id="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    data-testid="supplier-phone-input"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contact_name">Contacto</Label>
+                  <Label htmlFor="email">Email</Label>
                   <Input
-                    id="contact_name"
-                    value={formData.contact_name}
-                    onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                    data-testid="supplier-contact-input"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      data-testid="supplier-phone-input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      data-testid="supplier-email-input"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Dirección</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    data-testid="supplier-address-input"
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    data-testid="supplier-email-input"
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleCloseDialog}>
-                  Cancelar
-                </Button>
-                <Button type="submit" data-testid="save-supplier-button">
-                  Crear
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
+              <div className="space-y-2">
+                <Label htmlFor="address">Dirección</Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  data-testid="supplier-address-input"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleCloseDialog}>
+                Cancelar
+              </Button>
+              <Button type="submit" data-testid="save-supplier-button">
+                {editMode ? 'Actualizar' : 'Crear'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
       </Dialog>
 
       <div className="mb-6">
@@ -195,6 +224,7 @@ const Suppliers = () => {
               <TableHead>Teléfono</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Dirección</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -205,6 +235,30 @@ const Suppliers = () => {
                 <TableCell>{supplier.phone || '-'}</TableCell>
                 <TableCell>{supplier.email || '-'}</TableCell>
                 <TableCell>{supplier.address || '-'}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    {canUpdate('suppliers') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenDialog(supplier)}
+                        data-testid={`edit-supplier-${index}`}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete('suppliers') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(supplier.name)}
+                        data-testid={`delete-supplier-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

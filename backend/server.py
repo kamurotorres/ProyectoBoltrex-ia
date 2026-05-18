@@ -197,6 +197,25 @@ class SupplierCreate(BaseModel):
     email: Optional[EmailStr] = None
     address: Optional[str] = None
 
+    @validator('email', 'phone', 'address', 'contact_name', pre=True)
+    def empty_str_to_none(cls, v):
+        if v == '':
+            return None
+        return v
+
+class SupplierUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    address: Optional[str] = None
+
+    @validator('email', 'phone', 'address', 'contact_name', pre=True)
+    def empty_str_to_none(cls, v):
+        if v == '':
+            return None
+        return v
+
 class TaxRate(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str
@@ -738,6 +757,26 @@ async def get_suppliers(current_user: User = Depends(get_current_user)):
         if isinstance(supp.get('created_at'), str):
             supp['created_at'] = datetime.fromisoformat(supp['created_at'])
     return suppliers
+
+@api_router.put("/suppliers/{supplier_name}", response_model=Supplier)
+async def update_supplier(supplier_name: str, supplier_update: SupplierUpdate, current_user: User = Depends(get_current_user)):
+    update_data = {k: v for k, v in supplier_update.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    result = await db.suppliers.update_one({"name": supplier_name}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    updated = await db.suppliers.find_one({"name": update_data.get("name", supplier_name)}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Supplier(**updated)
+
+@api_router.delete("/suppliers/{supplier_name}")
+async def delete_supplier(supplier_name: str, current_user: User = Depends(get_current_user)):
+    result = await db.suppliers.delete_one({"name": supplier_name})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+    return {"message": "Supplier deleted"}
 
 # ==================== TAX RATES ====================
 
