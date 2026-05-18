@@ -27,12 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit, MapPin } from 'lucide-react';
+import { Plus, Search, Edit, MapPin, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const Clients = () => {
-  const { canCreate, canUpdate } = usePermissions();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [clients, setClients] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
@@ -137,6 +137,17 @@ const Clients = () => {
     setDialogOpen(false);
     setEditMode(false);
     setCurrentClient(null);
+  };
+
+  const handleDelete = async (documentNumber) => {
+    if (!window.confirm('¿Estás seguro de eliminar este cliente?')) return;
+    try {
+      await axios.delete(`${API}/clients/${documentNumber}`);
+      toast.success('Cliente eliminado');
+      fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar cliente');
+    }
   };
 
   const filteredClients = clients.filter(c =>
@@ -377,6 +388,16 @@ const Clients = () => {
                         data-testid={`edit-client-${index}`}
                       >
                         <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {canDelete('clients') && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(client.document_number)}
+                        data-testid={`delete-client-${index}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     )}
                   </div>

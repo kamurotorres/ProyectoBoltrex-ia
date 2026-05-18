@@ -715,6 +715,13 @@ async def update_client(document_number: str, client_update: ClientUpdate, curre
         updated['created_at'] = datetime.fromisoformat(updated['created_at'])
     return Client(**updated)
 
+@api_router.delete("/clients/{document_number}")
+async def delete_client(document_number: str, current_user: User = Depends(get_current_user)):
+    result = await db.clients.delete_one({"document_number": document_number})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"message": "Client deleted"}
+
 # ==================== SUPPLIERS ====================
 
 @api_router.post("/suppliers", response_model=Supplier)
