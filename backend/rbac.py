@@ -128,7 +128,8 @@ DEFAULT_MODULES = [
     {"name": "Importar", "slug": "import", "description": "Importación de datos"},
     {"name": "Usuarios", "slug": "users", "description": "Gestión de usuarios"},
     {"name": "Roles", "slug": "roles", "description": "Gestión de roles"},
-    {"name": "Permisos", "slug": "permissions", "description": "Gestión de permisos"}
+    {"name": "Permisos", "slug": "permissions", "description": "Gestión de permisos"},
+    {"name": "Listas de Precios", "slug": "price-lists", "description": "Gestión de listas de precios"}
 ]
 
 # ==================== DEFAULT ROLES ====================

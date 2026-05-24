@@ -24,6 +24,7 @@ import TicketConfig from '@/pages/TicketConfig';
 import PaymentMethods from '@/pages/PaymentMethods';
 import Fios from '@/pages/Fios';
 import FactoryReset from '@/pages/FactoryReset';
+import PriceLists from '@/pages/PriceLists';
 import Layout from '@/components/Layout';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -118,6 +119,7 @@ function App() {
             <Route path="ticket-config" element={<TicketConfig />} />
             <Route path="payment-methods" element={<PaymentMethods />} />
             <Route path="fios" element={<Fios />} />
+            <Route path="price-lists" element={<PriceLists />} />
             <Route path="settings" element={<FactoryReset />} />
           </Route>
         </Routes>

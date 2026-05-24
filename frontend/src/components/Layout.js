@@ -19,7 +19,8 @@ import {
   Receipt,
   Settings,
   CreditCard,
-  Wallet
+  Wallet,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -50,6 +51,7 @@ const Layout = () => {
     '/invoices': 'invoices',
     '/ticket-config': 'ticket-config',
     '/payment-methods': 'payment-methods',
+    '/price-lists': 'price-lists',
     '/fios': 'fios'
   };
 
@@ -68,6 +70,7 @@ const Layout = () => {
     { path: '/reports', icon: FileText, label: 'Reportes', moduleSlug: 'reports' },
     { path: '/import', icon: Upload, label: 'Importar', moduleSlug: 'import' },
     { path: '/payment-methods', icon: CreditCard, label: 'Formas de Pago', moduleSlug: 'payment-methods' },
+    { path: '/price-lists', icon: DollarSign, label: 'Listas de Precios', moduleSlug: 'price-lists' },
     { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
     { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' },
     { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' },

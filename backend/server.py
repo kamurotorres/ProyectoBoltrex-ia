@@ -90,6 +90,11 @@ class PriceListCreate(BaseModel):
     description: Optional[str] = None
     is_active: bool = True
 
+class PriceListUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
+
 class ProductPrice(BaseModel):
     price_list_name: str
     price: float
@@ -596,6 +601,27 @@ async def get_price_lists(current_user: User = Depends(get_current_user)):
         if isinstance(pl.get('created_at'), str):
             pl['created_at'] = datetime.fromisoformat(pl['created_at'])
     return price_lists
+
+@api_router.put("/price-lists/{name}", response_model=PriceList)
+async def update_price_list(name: str, pl_update: PriceListUpdate, current_user: User = Depends(get_current_user)):
+    update_data = {k: v for k, v in pl_update.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    result = await db.price_lists.update_one({"name": name}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Price list not found")
+    new_name = update_data.get("name", name)
+    updated = await db.price_lists.find_one({"name": new_name}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return PriceList(**updated)
+
+@api_router.delete("/price-lists/{name}")
+async def delete_price_list(name: str, current_user: User = Depends(get_current_user)):
+    result = await db.price_lists.delete_one({"name": name})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Price list not found")
+    return {"message": "Price list deleted"}
 
 # ==================== PRODUCTS ====================
 
