@@ -302,7 +302,7 @@ const Products = () => {
                           <SelectValue placeholder="Lista de Precios" />
                         </SelectTrigger>
                         <SelectContent>
-                          {priceLists.map((pl) => (
+                          {priceLists.filter(pl => pl.is_active).map((pl) => (
                             <SelectItem key={pl.name} value={pl.name}>
                               {pl.name}
                             </SelectItem>
