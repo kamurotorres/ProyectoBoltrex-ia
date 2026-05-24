@@ -139,6 +139,25 @@ const POS = () => {
     }));
   };
 
+  const setQuantity = (barcode, value) => {
+    const product = products.find(p => p.barcode === barcode);
+    const qty = parseInt(value) || 0;
+    if (qty <= 0) return;
+    if (product && qty > product.stock) {
+      toast.error('Stock insuficiente');
+      return;
+    }
+    setCart(cart.map(item => {
+      if (item.barcode === barcode) {
+        const subtotal = item.unit_price * qty;
+        const taxAmount = (subtotal * item.tax_rate) / 100;
+        const total = subtotal + taxAmount;
+        return { ...item, quantity: qty, subtotal, tax_amount: taxAmount, total };
+      }
+      return item;
+    }));
+  };
+
   const removeFromCart = (barcode) => {
     setCart(cart.filter(item => item.barcode !== barcode));
   };
@@ -519,7 +538,27 @@ const POS = () => {
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
-                            <span className="w-12 text-center font-mono font-bold">{item.quantity}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              className="w-16 text-center font-mono font-bold bg-transparent border rounded-md h-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={item.quantity}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '') {
+                                  setCart(cart.map(ci => ci.barcode === item.barcode ? { ...ci, quantity: '' } : ci));
+                                } else {
+                                  setQuantity(item.barcode, val);
+                                }
+                              }}
+                              onBlur={(e) => {
+                                if (!e.target.value || parseInt(e.target.value) <= 0) {
+                                  setQuantity(item.barcode, 1);
+                                }
+                              }}
+                              data-testid={`cart-quantity-input-${item.barcode}`}
+                            />
                             <Button
                               variant="outline"
                               size="icon"
