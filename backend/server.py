@@ -326,15 +326,21 @@ class PurchaseItem(BaseModel):
 
 class Purchase(BaseModel):
     model_config = ConfigDict(extra="ignore")
+    purchase_number: str
     supplier_name: str
     items: List[PurchaseItem]
     total: float
+    status: str = "borrador"
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class PurchaseCreate(BaseModel):
     supplier_name: str
     items: List[PurchaseItem]
+
+class PurchaseUpdate(BaseModel):
+    supplier_name: Optional[str] = None
+    items: Optional[List[PurchaseItem]] = None
 
 class InventoryMovement(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1318,35 +1324,91 @@ async def get_invoice_payments(invoice_number: str, current_user: User = Depends
 async def create_purchase(purchase_data: PurchaseCreate, current_user: User = Depends(get_current_user)):
     total = sum(item.total for item in purchase_data.items)
     
+    # Generate purchase_number
+    last = await db.purchases.find_one({}, sort=[("purchase_number", -1)])
+    if last and last.get("purchase_number"):
+        num = int(last["purchase_number"].replace("PUR-", "")) + 1
+    else:
+        num = 1
+    purchase_number = f"PUR-{num:06d}"
+    
     purchase_dict = {
+        "purchase_number": purchase_number,
         "supplier_name": purchase_data.supplier_name,
         "items": [item.model_dump() for item in purchase_data.items],
         "total": total,
+        "status": "borrador",
         "created_by": current_user.email,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.purchases.insert_one(purchase_dict)
     
-    # Update inventory and create movements
-    for item in purchase_data.items:
+    return Purchase(**{**purchase_dict, "created_at": datetime.fromisoformat(purchase_dict["created_at"])})
+
+@api_router.get("/purchases/{purchase_number}", response_model=Purchase)
+async def get_purchase(purchase_number: str, current_user: User = Depends(get_current_user)):
+    purchase = await db.purchases.find_one({"purchase_number": purchase_number}, {"_id": 0})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if isinstance(purchase.get('created_at'), str):
+        purchase['created_at'] = datetime.fromisoformat(purchase['created_at'])
+    return Purchase(**purchase)
+
+@api_router.put("/purchases/{purchase_number}", response_model=Purchase)
+async def update_purchase(purchase_number: str, update_data: PurchaseUpdate, current_user: User = Depends(get_current_user)):
+    purchase = await db.purchases.find_one({"purchase_number": purchase_number})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if purchase.get("status") != "borrador":
+        raise HTTPException(status_code=400, detail="No se puede editar una compra confirmada")
+    
+    update_fields = {}
+    if update_data.supplier_name is not None:
+        update_fields["supplier_name"] = update_data.supplier_name
+    if update_data.items is not None:
+        items_dump = [item.model_dump() for item in update_data.items]
+        update_fields["items"] = items_dump
+        update_fields["total"] = sum(item.total for item in update_data.items)
+    
+    if update_fields:
+        await db.purchases.update_one({"purchase_number": purchase_number}, {"$set": update_fields})
+    
+    updated = await db.purchases.find_one({"purchase_number": purchase_number}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Purchase(**updated)
+
+@api_router.post("/purchases/{purchase_number}/confirm", response_model=Purchase)
+async def confirm_purchase(purchase_number: str, current_user: User = Depends(get_current_user)):
+    purchase = await db.purchases.find_one({"purchase_number": purchase_number})
+    if not purchase:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if purchase.get("status") != "borrador":
+        raise HTTPException(status_code=400, detail="Esta compra ya está confirmada")
+    
+    await db.purchases.update_one({"purchase_number": purchase_number}, {"$set": {"status": "confirmado"}})
+    
+    for item in purchase["items"]:
         await db.products.update_one(
-            {"barcode": item.barcode},
-            {"$inc": {"stock": item.quantity}}
+            {"barcode": item["barcode"]},
+            {"$inc": {"stock": item["quantity"]}}
         )
-        
         movement_dict = {
-            "barcode": item.barcode,
-            "product_name": item.product_name,
+            "barcode": item["barcode"],
+            "product_name": item["product_name"],
             "movement_type": "purchase",
-            "quantity": item.quantity,
-            "reference": purchase_data.supplier_name,
+            "quantity": item["quantity"],
+            "reference": purchase_number,
             "created_by": current_user.email,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.inventory_movements.insert_one(movement_dict)
     
-    return Purchase(**{**purchase_dict, "created_at": datetime.fromisoformat(purchase_dict["created_at"])})
+    updated = await db.purchases.find_one({"purchase_number": purchase_number}, {"_id": 0})
+    if isinstance(updated.get('created_at'), str):
+        updated['created_at'] = datetime.fromisoformat(updated['created_at'])
+    return Purchase(**updated)
 
 @api_router.get("/purchases", response_model=List[Purchase])
 async def get_purchases(current_user: User = Depends(get_current_user)):
