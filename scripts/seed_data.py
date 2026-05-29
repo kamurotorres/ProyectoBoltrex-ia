@@ -3,17 +3,20 @@
 import asyncio
 import sys
 import os
-sys.path.append('/app/backend')
+from pathlib import Path
+
+# Dynamic path resolution (works on Linux, Windows, Docker)
+SCRIPT_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = SCRIPT_DIR.parent / 'backend'
+sys.path.insert(0, str(BACKEND_DIR))
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from pathlib import Path
 from passlib.context import CryptContext
 
 # Load environment
-ROOT_DIR = Path('/app/backend')
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(BACKEND_DIR / '.env')
 
 mongo_url = os.environ['MONGO_URL']
 db_name = os.environ['DB_NAME']
@@ -30,7 +33,7 @@ async def seed_database():
     # === 1. Admin User ===
     admin_exists = await db.users_extended.find_one({"email": "admin@boltrex.com"})
     if not admin_exists:
-        hashed_pw = pwd_context.hash("admin")
+        hashed_pw = pwd_context.hash("admin123")
         admin_user = {
             "email": "admin@boltrex.com",
             "first_name": "Admin",
@@ -43,7 +46,6 @@ async def seed_database():
             "updated_at": now
         }
         await db.users_extended.insert_one(admin_user)
-        # Also insert in legacy users collection for compatibility
         legacy_user = {
             "email": "admin@boltrex.com",
             "full_name": "Admin Boltrex",
@@ -53,7 +55,7 @@ async def seed_database():
             "created_at": now
         }
         await db.users.insert_one(legacy_user)
-        print("  Created admin user: admin@boltrex.com / admin")
+        print("  Created admin user: admin@boltrex.com / admin123")
     else:
         print("  Admin user already exists")
     
