@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -29,6 +29,7 @@ const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState(null);
@@ -57,6 +58,9 @@ const Suppliers = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       if (editMode) {
         await axios.put(`${API}/suppliers/${encodeURIComponent(currentSupplier.name)}`, formData);
@@ -69,6 +73,8 @@ const Suppliers = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar proveedor');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -193,8 +199,15 @@ const Suppliers = () => {
               <Button type="button" variant="outline" onClick={handleCloseDialog}>
                 Cancelar
               </Button>
-              <Button type="submit" data-testid="save-supplier-button">
-                {editMode ? 'Actualizar' : 'Crear'}
+              <Button type="submit" disabled={isSubmitting} data-testid="save-supplier-button">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editMode ? 'Actualizando...' : 'Creando...'}
+                  </>
+                ) : (
+                  editMode ? 'Actualizar' : 'Crear'
+                )}
               </Button>
             </DialogFooter>
           </form>

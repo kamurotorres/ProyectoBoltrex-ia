@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit, MapPin, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, MapPin, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -38,6 +38,7 @@ const Clients = () => {
   const [priceLists, setPriceLists] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentClient, setCurrentClient] = useState(null);
@@ -77,6 +78,9 @@ const Clients = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       const payload = {
         ...formData,
@@ -95,6 +99,8 @@ const Clients = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar cliente');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -325,8 +331,15 @@ const Clients = () => {
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar
                 </Button>
-                <Button type="submit" data-testid="save-client-button">
-                  {editMode ? 'Actualizar' : 'Crear'}
+                <Button type="submit" disabled={isSubmitting} data-testid="save-client-button">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editMode ? 'Actualizando...' : 'Creando...'}
+                    </>
+                  ) : (
+                    editMode ? 'Actualizar' : 'Crear'
+                  )}
                 </Button>
               </DialogFooter>
             </form>

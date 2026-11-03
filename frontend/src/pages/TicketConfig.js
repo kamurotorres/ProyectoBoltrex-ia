@@ -71,6 +71,7 @@ const TicketConfig = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saving) return;
     
     if (!config.company_name.trim()) {
       toast.error('El nombre de la empresa es requerido');

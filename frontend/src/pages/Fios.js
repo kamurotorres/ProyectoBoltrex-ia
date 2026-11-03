@@ -13,7 +13,8 @@ import {
   CreditCard,
   Calendar,
   CheckCircle2,
-  Clock
+  Clock,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import { API } from '@/App';
 const Fios = () => {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientDetail, setClientDetail] = useState(null);
@@ -111,6 +113,7 @@ const Fios = () => {
 
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     
     if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
       toast.error('Ingrese un monto válido');
@@ -122,6 +125,7 @@ const Fios = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const response = await axios.post(`${API}/fios/${selectedInvoice.invoice_number}/payment`, {
         amount: parseFloat(paymentForm.amount),
@@ -138,6 +142,8 @@ const Fios = () => {
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al registrar el abono');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -443,9 +449,18 @@ const Fios = () => {
                   <Button type="button" variant="outline" onClick={() => setShowPaymentDialog(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" data-testid="submit-payment-btn-detail">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Registrar Abono
+                  <Button type="submit" disabled={isSubmitting} data-testid="submit-payment-btn-detail">
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Registrando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Registrar Abono
+                      </>
+                    )}
                   </Button>
                 </DialogFooter>
               </form>
@@ -674,9 +689,18 @@ const Fios = () => {
                 <Button type="button" variant="outline" onClick={() => setShowPaymentDialog(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" data-testid="submit-payment-btn">
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Registrar Abono
+                <Button type="submit" disabled={isSubmitting} data-testid="submit-payment-btn">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Registrando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Registrar Abono
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </form>

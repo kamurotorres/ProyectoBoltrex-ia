@@ -13,7 +13,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Card, CardContent } from '@/components/ui/card';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -22,6 +22,7 @@ const Categories = () => {
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(null);
@@ -44,6 +45,9 @@ const Categories = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       if (editMode) {
         await axios.put(`${API}/categories/${currentCategory.name}`, formData);
@@ -56,6 +60,8 @@ const Categories = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar categoría');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -146,8 +152,15 @@ const Categories = () => {
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar
                 </Button>
-                <Button type="submit" data-testid="save-category-button">
-                  {editMode ? 'Actualizar' : 'Crear'}
+                <Button type="submit" disabled={isSubmitting} data-testid="save-category-button">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editMode ? 'Actualizando...' : 'Creando...'}
+                    </>
+                  ) : (
+                    editMode ? 'Actualizar' : 'Crear'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
