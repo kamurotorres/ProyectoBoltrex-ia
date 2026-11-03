@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '@/App';
 import {
@@ -20,39 +20,21 @@ import {
   Settings,
   CreditCard,
   Wallet,
-  DollarSign
+  DollarSign,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const Layout = () => {
   const { user, logout } = useContext(AuthContext);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    setSidebarOpen(false);
     logout();
     navigate('/login');
-  };
-
-  // Map routes to module slugs
-  const routeToModuleMap = {
-    '/': 'dashboard',
-    '/products': 'products',
-    '/categories': 'categories',
-    '/clients': 'clients',
-    '/suppliers': 'suppliers',
-    '/purchases': 'purchases',
-    '/returns': 'returns',
-    '/pos': 'pos',
-    '/inventory': 'inventory',
-    '/reports': 'reports',
-    '/import': 'import',
-    '/users': 'users',
-    '/roles': 'permissions',
-    '/invoices': 'invoices',
-    '/ticket-config': 'ticket-config',
-    '/payment-methods': 'payment-methods',
-    '/price-lists': 'price-lists',
-    '/fios': 'fios'
   };
 
   const allNavItems = [
@@ -80,64 +62,118 @@ const Layout = () => {
   // Filter nav items based on user permissions
   const navItems = allNavItems.filter(item => {
     if (!user || !user.permissions) return false;
-    
     const modulePermissions = user.permissions[item.moduleSlug];
-    
-    // User needs at least READ permission to see the module
     return modulePermissions && modulePermissions.read === true;
   });
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-60 bg-card border-r border-border fixed h-full overflow-y-auto">
-        <div className="p-6 border-b border-border">
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="app-title">
-            Boltrex
-          </h1>
-          <p className="text-xs text-muted-foreground mt-1">Inventory & POS</p>
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Backdrop overlay when sidebar is open */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-xs transition-opacity"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Top Header Bar with Hamburger Button */}
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/75">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSidebarOpen(prev => !prev)}
+            className="flex items-center gap-2 font-medium"
+            data-testid="hamburger-menu-button"
+            title="Abrir menú"
+          >
+            <Menu className="h-4 w-4" />
+            <span className="text-xs sm:text-sm font-semibold">Menú</span>
+          </Button>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-lg tracking-tight">Boltrex</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">| POS & Gestión</span>
+          </div>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground hidden md:inline font-mono">{user?.email}</span>
+        </div>
+      </header>
+
+      {/* Slide-out Sidebar Drawer */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-64 bg-card border-r border-border z-50 flex flex-col shadow-2xl transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">
+              Boltrex
+            </h1>
+            <p className="text-xs text-muted-foreground">Inventory & POS</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(false)}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            title="Cerrar menú"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+
+        {/* User Info & Logout Button at the TOP, right below program name */}
+        <div className="p-3 border-b border-border bg-muted/40">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold truncate text-foreground" data-testid="user-email">
+                {user?.email}
+              </p>
+              <p className="text-[10px] text-muted-foreground capitalize truncate">
+                {user?.roles && user.roles.length > 0 ? user.roles.join(', ') : (user?.role || 'Usuario')}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive flex items-center gap-1 shrink-0"
+              data-testid="logout-button"
+              title="Cerrar sesión"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span>Salir</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Navigation List - Closes sidebar upon clicking any item */}
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.path === '/'}
+              onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `sidebar-nav-item flex items-center gap-3 px-4 py-3 rounded-md text-sm ${isActive ? 'active' : ''}`
+                `sidebar-nav-item flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? 'active' : ''}`
               }
               data-testid={`nav-${item.label.toLowerCase()}`}
             >
-              <item.icon className="h-5 w-5" strokeWidth={1.5} />
+              <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
               <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
-
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-card">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" data-testid="user-email">{user?.email}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              data-testid="logout-button"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 ml-60">
-        <div className="p-8">
-          <Outlet />
-        </div>
+      {/* Main Content Area - Full width */}
+      <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
+        <Outlet />
       </main>
     </div>
   );

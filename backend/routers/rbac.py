@@ -66,7 +66,7 @@ async def check_permission(
     module_slug: str,
     action: str
 ) -> bool:
-    """Verificar si un usuario tiene permiso para una acción en un módulo"""
+    """Verificar si un usuario tiene permiso para una acciÃ³n en un mÃ³dulo"""
     permissions = await get_user_permissions(db, user_email)
     
     if module_slug not in permissions:
@@ -94,10 +94,10 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.post("/modules", response_model=SystemModule)
     async def create_module(module: SystemModuleCreate):
-        """Crear un módulo del sistema"""
+        """Crear un mÃ³dulo del sistema"""
         existing = await db.system_modules.find_one({"slug": module.slug})
         if existing:
-            raise HTTPException(status_code=400, detail="Módulo ya existe")
+            raise HTTPException(status_code=400, detail="MÃ³dulo ya existe")
         
         module_dict = module.model_dump()
         module_dict["created_at"] = datetime.now(timezone.utc).isoformat()
@@ -107,7 +107,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.get("/modules", response_model=List[SystemModule])
     async def get_modules():
-        """Listar todos los módulos del sistema"""
+        """Listar todos los mÃ³dulos del sistema"""
         modules = await db.system_modules.find({}, {"_id": 0}).to_list(1000)
         for mod in modules:
             if isinstance(mod.get('created_at'), str):
@@ -116,13 +116,13 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.put("/modules/{slug}", response_model=SystemModule)
     async def update_module(slug: str, module: SystemModuleCreate):
-        """Actualizar un módulo del sistema"""
+        """Actualizar un mÃ³dulo del sistema"""
         result = await db.system_modules.update_one(
             {"slug": slug},
             {"$set": module.model_dump()}
         )
         if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Módulo no encontrado")
+            raise HTTPException(status_code=404, detail="MÃ³dulo no encontrado")
         
         updated = await db.system_modules.find_one({"slug": slug}, {"_id": 0})
         if isinstance(updated.get('created_at'), str):
@@ -131,11 +131,11 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.delete("/modules/{slug}")
     async def delete_module(slug: str):
-        """Eliminar un módulo del sistema"""
+        """Eliminar un mÃ³dulo del sistema"""
         result = await db.system_modules.delete_one({"slug": slug})
         if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Módulo no encontrado")
-        return {"message": "Módulo eliminado"}
+            raise HTTPException(status_code=404, detail="MÃ³dulo no encontrado")
+        return {"message": "MÃ³dulo eliminado"}
     
     # ==================== ROLES ====================
     
@@ -210,7 +210,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.post("/permissions", response_model=RolePermission)
     async def assign_permission(perm: RolePermissionCreate):
-        """Asignar permisos a un rol sobre un módulo"""
+        """Asignar permisos a un rol sobre un mÃ³dulo"""
         # Verify role exists
         role = await db.roles.find_one({"name": perm.role_name})
         if not role:
@@ -219,7 +219,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
         # Verify module exists
         module = await db.system_modules.find_one({"slug": perm.module_slug})
         if not module:
-            raise HTTPException(status_code=404, detail="Módulo no encontrado")
+            raise HTTPException(status_code=404, detail="MÃ³dulo no encontrado")
         
         # Update or insert permission
         perm_dict = perm.model_dump()
@@ -249,7 +249,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.delete("/permissions/{role_name}/{module_slug}")
     async def delete_permission(role_name: str, module_slug: str):
-        """Eliminar permisos de un rol sobre un módulo"""
+        """Eliminar permisos de un rol sobre un mÃ³dulo"""
         result = await db.role_permissions.delete_one({
             "role_name": role_name,
             "module_slug": module_slug
@@ -381,7 +381,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
     
     @router.post("/users/check-permission", response_model=PermissionCheck)
     async def check_user_permission(user_email: str, module_slug: str, action: str):
-        """Verificar si un usuario tiene permiso para una acción"""
+        """Verificar si un usuario tiene permiso para una acciÃ³n"""
         user = await db.users_extended.find_one({"email": user_email}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")

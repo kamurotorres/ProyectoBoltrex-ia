@@ -27,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit, UserX, UserCheck, Shield } from 'lucide-react';
+import { Plus, Search, Edit, UserX, UserCheck, Shield, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -38,6 +38,8 @@ const UsersManagement = () => {
   const [roles, setRoles] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAssigning, setIsAssigning] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -73,6 +75,9 @@ const UsersManagement = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       if (editMode) {
         await axios.put(`${API}/rbac/users/${currentUser.email}`, formData);
@@ -85,6 +90,8 @@ const UsersManagement = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar usuario');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -138,6 +145,8 @@ const UsersManagement = () => {
   };
 
   const handleAssignRoles = async () => {
+    if (isAssigning) return;
+    setIsAssigning(true);
     try {
       await axios.post(`${API}/rbac/users/${currentUser.email}/roles`, selectedUserRoles);
       toast.success('Roles asignados correctamente');
@@ -145,6 +154,8 @@ const UsersManagement = () => {
       setRoleDialogOpen(false);
     } catch (error) {
       toast.error('Error al asignar roles');
+    } finally {
+      setIsAssigning(false);
     }
   };
 
@@ -263,8 +274,15 @@ const UsersManagement = () => {
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar
                 </Button>
-                <Button type="submit" data-testid="save-user-button">
-                  {editMode ? 'Actualizar' : 'Crear'}
+                <Button type="submit" disabled={isSubmitting} data-testid="save-user-button">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {editMode ? 'Actualizando...' : 'Creando...'}
+                    </>
+                  ) : (
+                    editMode ? 'Actualizar' : 'Crear'
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -396,8 +414,15 @@ const UsersManagement = () => {
             <Button type="button" variant="outline" onClick={() => setRoleDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAssignRoles} data-testid="save-roles-button">
-              Asignar Roles
+            <Button onClick={handleAssignRoles} disabled={isAssigning} data-testid="save-roles-button">
+              {isAssigning ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Asignando...
+                </>
+              ) : (
+                'Asignar Roles'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -31,6 +31,7 @@ const PriceLists = () => {
   const [priceLists, setPriceLists] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentPL, setCurrentPL] = useState(null);
@@ -55,6 +56,9 @@ const PriceLists = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
+    setIsSubmitting(true);
     try {
       if (editMode) {
         await axios.put(`${API}/price-lists/${encodeURIComponent(currentPL.name)}`, formData);
@@ -67,6 +71,8 @@ const PriceLists = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -160,7 +166,16 @@ const PriceLists = () => {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>Cancelar</Button>
-              <Button type="submit" data-testid="save-price-list-button">{editMode ? 'Actualizar' : 'Crear'}</Button>
+              <Button type="submit" disabled={isSubmitting} data-testid="save-price-list-button">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editMode ? 'Actualizando...' : 'Creando...'}
+                  </>
+                ) : (
+                  editMode ? 'Actualizar' : 'Crear'
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

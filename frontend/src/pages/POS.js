@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, User, AlertCircle, Package } from 'lucide-react';
+import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, User, AlertCircle, Package, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -26,6 +26,7 @@ const POS = () => {
   const [selectedClient, setSelectedClient] = useState(null);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   // Payment fields
   const [paymentStatus, setPaymentStatus] = useState('pagado');
@@ -189,6 +190,8 @@ const POS = () => {
   };
 
   const handleCheckout = async () => {
+    if (isProcessing) return;
+
     if (!selectedClient) {
       toast.error('Selecciona un cliente');
       return;
@@ -203,6 +206,7 @@ const POS = () => {
       return;
     }
 
+    setIsProcessing(true);
     try {
       const invoiceData = {
         client_document: selectedClient.document_number,
@@ -237,6 +241,8 @@ const POS = () => {
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al crear factura');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -685,13 +691,18 @@ const POS = () => {
                   </div>
                   
                   <Button
-                    className="w-full h-14 text-lg mt-4"
+                    className="w-full h-14 text-lg mt-4 font-semibold shadow-md"
                     size="lg"
                     onClick={handleCheckout}
-                    disabled={cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod) || !canCreate('pos')}
+                    disabled={isProcessing || cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod) || !canCreate('pos')}
                     data-testid="checkout-button"
                   >
-                    {paymentStatus === 'pagado' ? (
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Procesando venta...
+                      </>
+                    ) : paymentStatus === 'pagado' ? (
                       <>
                         <CreditCard className="h-5 w-5 mr-2" />
                         Procesar Venta (Pagado)

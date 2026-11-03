@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Trash2, Search, Package, Truck, ShoppingBag, Edit, Eye, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Search, Package, Truck, ShoppingBag, Edit, Eye, CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -31,6 +31,8 @@ const Purchases = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmingId, setConfirmingId] = useState(null);
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -193,6 +195,8 @@ const Purchases = () => {
       }))
     };
 
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       if (dialogMode === 'edit') {
         await axios.put(`${API}/purchases/${currentPurchase.purchase_number}`, payload);
@@ -205,18 +209,24 @@ const Purchases = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar compra');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // === Confirm purchase ===
   const handleConfirm = async (purchaseNumber) => {
+    if (confirmingId) return;
     if (!window.confirm('¿Estás seguro de procesar esta compra?\nEsto actualizará el inventario y no se podrá editar.')) return;
+    setConfirmingId(purchaseNumber);
     try {
       await axios.post(`${API}/purchases/${purchaseNumber}/confirm`);
       toast.success('Compra confirmada e inventario actualizado');
       fetchData();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al confirmar compra');
+    } finally {
+      setConfirmingId(null);
     }
   };
 
@@ -464,8 +474,15 @@ const Purchases = () => {
                 {isReadonly ? 'Cerrar' : 'Cancelar'}
               </Button>
               {!isReadonly && (
-                <Button type="submit" disabled={!selectedSupplier || items.length === 0} data-testid="save-purchase-button">
-                  {dialogMode === 'edit' ? 'Actualizar Compra' : 'Guardar Borrador'}
+                <Button type="submit" disabled={isSubmitting || !selectedSupplier || items.length === 0} data-testid="save-purchase-button">
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Guardando...
+                    </>
+                  ) : (
+                    dialogMode === 'edit' ? 'Actualizar Compra' : 'Guardar Borrador'
+                  )}
                 </Button>
               )}
             </DialogFooter>
@@ -515,8 +532,20 @@ const Purchases = () => {
                           </Button>
                         )}
                         {canUpdate('purchases') && (
-                          <Button variant="ghost" size="icon" className="text-green-500 hover:text-green-600" onClick={() => handleConfirm(purchase.purchase_number)} title="Procesar" data-testid={`confirm-purchase-${index}`}>
-                            <CheckCircle className="h-4 w-4" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-green-500 hover:text-green-600"
+                            onClick={() => handleConfirm(purchase.purchase_number)}
+                            disabled={confirmingId === purchase.purchase_number}
+                            title="Procesar"
+                            data-testid={`confirm-purchase-${index}`}
+                          >
+                            {confirmingId === purchase.purchase_number ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-green-500" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
                       </>

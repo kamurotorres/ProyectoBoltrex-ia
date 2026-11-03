@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, RotateCcw } from 'lucide-react';
+import { Plus, Search, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -30,6 +30,7 @@ const Returns = () => {
   const [returns, setReturns] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchInvoice, setSearchInvoice] = useState('');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
@@ -72,6 +73,7 @@ const Returns = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     
     const itemsToReturn = returnItems.filter(item => item.return_quantity > 0);
     if (itemsToReturn.length === 0) {
@@ -79,6 +81,7 @@ const Returns = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await axios.post(`${API}/returns`, {
         invoice_number: selectedInvoice.invoice_number,
@@ -95,6 +98,8 @@ const Returns = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al registrar devolución');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -250,9 +255,18 @@ const Returns = () => {
                   Cancelar
                 </Button>
                 {selectedInvoice && (
-                  <Button type="submit" data-testid="save-return-button">
-                    <RotateCcw className="h-4 w-4 mr-2" />
-                    Procesar Devolución
+                  <Button type="submit" disabled={isSubmitting} data-testid="save-return-button">
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Procesar Devolución
+                      </>
+                    )}
                   </Button>
                 )}
               </DialogFooter>

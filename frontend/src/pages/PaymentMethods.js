@@ -9,7 +9,8 @@ import {
   Check, 
   X,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ import { API } from '@/App';
 const PaymentMethods = () => {
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editingMethod, setEditingMethod] = useState(null);
@@ -92,12 +94,14 @@ const PaymentMethods = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
     
     if (!formData.name.trim()) {
       toast.error('El nombre es requerido');
       return;
     }
 
+    setIsSubmitting(true);
     try {
       if (editingMethod) {
         await axios.put(`${API}/payment-methods/${editingMethod.name}`, formData);
@@ -110,6 +114,8 @@ const PaymentMethods = () => {
       fetchPaymentMethods();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Error al guardar');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -308,8 +314,15 @@ const PaymentMethods = () => {
               <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" data-testid="save-payment-method-btn">
-                {editingMethod ? 'Guardar Cambios' : 'Crear'}
+              <Button type="submit" disabled={isSubmitting} data-testid="save-payment-method-btn">
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingMethod ? 'Guardando...' : 'Creando...'}
+                  </>
+                ) : (
+                  editingMethod ? 'Guardar Cambios' : 'Crear'
+                )}
               </Button>
             </DialogFooter>
           </form>
