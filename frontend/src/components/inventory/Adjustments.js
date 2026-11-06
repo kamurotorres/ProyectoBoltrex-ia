@@ -17,6 +17,7 @@ import ExportMenu from '@/components/ExportMenu';
 import { notifyDataChanged } from '@/lib/events';
 import { money, signedMoney } from '@/lib/format';
 import { API, api } from '@/api/client';
+import { useServerSearch } from '@/hooks/useServerSearch';
 
 export { signedMoney };   // Inventario lo importa desde aquí
 
@@ -38,7 +39,8 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);       // { barcode, name, stock, cost, value }
   const [search, setSearch] = useState('');
-  const [results, setResults] = useState([]);
+  // Búsqueda de productos en el servidor (desde 2 caracteres) con el hook compartido (fase 5).
+  const { results } = useServerSearch('/inventory', search, { pageSize: 10, errorMessage: 'Error al buscar productos' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -46,7 +48,6 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
     setKind('salida');
     setNotes('');
     setSearch('');
-    setResults([]);
     setItems(initialProduct ? [{ barcode: initialProduct.barcode, name: initialProduct.name, stock: initialProduct.stock,
                                  cost: initialProduct.purchase_price || 0, value: '' }] : []);
     api.get(`/adjustment-reasons`, { params: { active_only: true } })
@@ -61,21 +62,6 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
   }, [kind, reasons]);
   const reasonDoc = reasons.find((r) => r.name === reason);
 
-  // Búsqueda de productos en el servidor (desde 2 caracteres).
-  useEffect(() => {
-    const text = search.trim();
-    if (text.length < 2) { setResults([]); return undefined; }
-    const t = setTimeout(async () => {
-      try {
-        const r = await api.get(`/inventory`, { params: { search: text, page_size: 10 } });
-        setResults(r.data.items || []);
-      } catch (e) {
-        toast.error(getErrorMessage(e, 'Error al buscar productos'));
-      }
-    }, 300);
-    return () => clearTimeout(t);
-  }, [search]);
-
   const addProduct = (p) => {
     if (items.some((i) => i.barcode === p.barcode)) {
       toast.error(`${p.name} ya está en el ajuste.`);
@@ -83,7 +69,6 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
     }
     setItems([...items, { barcode: p.barcode, name: p.name, stock: p.stock, cost: p.purchase_price || 0, value: '' }]);
     setSearch('');
-    setResults([]);
   };
   const setValue = (barcode, value) => setItems(items.map((i) => (i.barcode === barcode ? { ...i, value } : i)));
   const removeItem = (barcode) => setItems(items.filter((i) => i.barcode !== barcode));

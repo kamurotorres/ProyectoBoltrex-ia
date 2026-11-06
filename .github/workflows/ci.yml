@@ -110,6 +110,9 @@ jobs:
       - name: Formatos de dinero y fechas (lib/format.js)
         run: node tests/frontend_format_check.js
 
+      - name: Reglas del carrito del POS vs. el código original
+        run: node tests/frontend_cart_check.js
+
       - name: Lint (nombres sin definir)
         run: bash tests/frontend_lint_check.sh
 
