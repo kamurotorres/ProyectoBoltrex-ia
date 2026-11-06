@@ -1,14 +1,7 @@
-import re
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, Response, BackgroundTasks
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ReturnDocument
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List, Optional
 from core.dates import now_utc, as_datetime
 from core.database import db
-from core.database import get_db
-from core.security import get_current_user, get_password_hash, verify_password, create_access_token
 from core.permissions import require_permission, require_any_permission
 from core.transactions import run_in_transaction
 from core import audit
@@ -17,18 +10,11 @@ from core.user_protection import actor_is_admin
 
 CREDIT_ONLY_ADMIN = ("Solo un administrador puede asignar o cambiar el plazo y el cupo de crédito de un cliente "
                      "(son el control de cuánto se le fía). Deja esos campos vacíos o pídeselo a un administrador.")
-from core.pagination import page_params, paginate, paginate_pipeline, search_filter, combine
-from models.auth import *
-from models.billing import *
-from models.inventory import *
-from models.entities import *
-import io
-import csv
-from fastapi.responses import StreamingResponse
-from ticket_generator import TicketPDFGenerator
+from core.pagination import page_params, paginate, search_filter
+from models.auth import User
+from models.entities import Client, ClientCreate, ClientUpdate, DocumentType, DocumentTypeCreate, Supplier, SupplierCreate, SupplierUpdate
 
 router = APIRouter(tags=["Clients"])
-db_dep = Depends(get_db)
 # ==================== DOCUMENT TYPES ====================
 
 @router.post("/document-types", response_model=DocumentType)

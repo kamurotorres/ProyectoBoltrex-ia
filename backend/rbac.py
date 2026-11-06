@@ -1,9 +1,7 @@
 """
 Sistema de Control de Acceso Basado en Roles (RBAC)
 """
-from fastapi import HTTPException, Depends
-from typing import List, Optional, Dict, Any
-from functools import wraps
+from typing import List, Optional
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from datetime import datetime, timezone
 

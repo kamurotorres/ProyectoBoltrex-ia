@@ -70,7 +70,7 @@ check("los demás índices únicos sí se crearon", all(n in mongo[c].index_info
     ("clients", "uniq_clients_document_type_document_number"), ("role_permissions", "uniq_role_permissions_role_name_module_slug")]))
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from core.indexes import INDEXES, ensure_indexes, duplicate_key_message  # noqa: E402
+from core.indexes import INDEXES, ensure_indexes  # noqa: E402
 
 
 mongo.products.delete_one({"barcode": PLANTED})

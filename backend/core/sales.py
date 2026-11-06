@@ -13,7 +13,7 @@ Reglas (decisión del usuario, opción A):
 from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 
-from fastapi import HTTPException
+from core.errors import BusinessError
 
 from core.database import db
 
@@ -24,7 +24,7 @@ def _parse_day(value: str) -> datetime.date:
     try:
         return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail=f"Fecha inválida '{value}': usa el formato AAAA-MM-DD.")
+        raise BusinessError(f"Fecha inválida '{value}': usa el formato AAAA-MM-DD.")
 
 
 def created_at_range(start_date: Optional[str], end_date: Optional[str], tz_offset_minutes: int = 0) -> Optional[dict]:
@@ -35,7 +35,7 @@ def created_at_range(start_date: Optional[str], end_date: Optional[str], tz_offs
     start = _parse_day(start_date) if start_date else None
     end = _parse_day(end_date) if end_date else None
     if start and end and start > end:
-        raise HTTPException(status_code=400, detail="La fecha 'desde' no puede ser posterior a la fecha 'hasta'.")
+        raise BusinessError("La fecha 'desde' no puede ser posterior a la fecha 'hasta'.")
     cond = {}
     if start:
         # Medianoche local → UTC (hora local + desfase). P1.19: se compara con fechas nativas.

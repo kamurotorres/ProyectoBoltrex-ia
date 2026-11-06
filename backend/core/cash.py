@@ -17,7 +17,7 @@ El efectivo esperado = base + entradas en efectivo − salidas en efectivo.
 """
 from typing import Dict, List, Optional
 
-from fastapi import HTTPException
+from core.errors import BusinessError
 
 from core.counters import Counter
 from core.database import db
@@ -80,10 +80,7 @@ async def session_for_money(email: str, action: str, amount: Optional[float] = N
     if (await get_settings(session=session))["require_open_session"]:
         extra = f": esta devolución entrega {money(amount)} en efectivo" if action == "refund" else ""
         what = {"sale": "vender", "fio_payment": "recibir abonos", "refund": "registrar la devolución"}.get(action, "continuar")
-        raise HTTPException(
-            status_code=400,
-            detail=f"Abre tu caja antes de {what}{extra}. La configuración del sistema exige una caja abierta (menú Caja).",
-        )
+        raise BusinessError(f"Abre tu caja antes de {what}{extra}. La configuración del sistema exige una caja abierta (menú Caja).")
     return None
 
 
@@ -151,16 +148,16 @@ def counted_from(denominations: Optional[Dict], counted_cash: Optional[float]) -
             try:
                 value, qty = int(k), int(v or 0)
             except (TypeError, ValueError):
-                raise HTTPException(status_code=400, detail=f"Denominación inválida: {k}")
+                raise BusinessError(f"Denominación inválida: {k}")
             if value not in DENOMINATIONS:
-                raise HTTPException(status_code=400, detail=f"Denominación no válida en Colombia: {money(value)}")
+                raise BusinessError(f"Denominación no válida en Colombia: {money(value)}")
             if qty < 0:
-                raise HTTPException(status_code=400, detail=f"La cantidad de {money(value)} no puede ser negativa.")
+                raise BusinessError(f"La cantidad de {money(value)} no puede ser negativa.")
             if qty:
                 clean[str(value)] = qty
         return float(sum(int(k) * q for k, q in clean.items())), clean
     if counted_cash is None:
-        raise HTTPException(status_code=400, detail="Indica el efectivo contado (total o por denominaciones).")
+        raise BusinessError("Indica el efectivo contado (total o por denominaciones).")
     if counted_cash < 0:
-        raise HTTPException(status_code=400, detail="El efectivo contado no puede ser negativo.")
+        raise BusinessError("El efectivo contado no puede ser negativo.")
     return float(counted_cash), None

@@ -15,9 +15,9 @@ Tipos de columna: text · int · number · money · percent · date · datetime 
 import io
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import HTTPException
+from core.errors import BusinessError
 from fastapi.responses import Response
 
 from core import audit
@@ -70,7 +70,7 @@ def money(v: float) -> str:
 def check_format(fmt: Optional[str]) -> str:
     fmt = (fmt or "csv").lower()
     if fmt not in FORMATS:
-        raise HTTPException(status_code=400, detail="Formato inválido: usa xlsx (Excel), pdf o csv.")
+        raise BusinessError("Formato inválido: usa xlsx (Excel), pdf o csv.")
     return fmt
 
 
@@ -191,7 +191,7 @@ def render_pdf(report: Report, comp: Dict[str, str], generated: str) -> bytes:
     pdf_sheets = [s for s in report.sheets if s.in_pdf]
     rows_total = sum(len(s.rows) for s in pdf_sheets)
     if rows_total > PDF_MAX_ROWS:
-        raise HTTPException(status_code=400, detail=f"El PDF admite máximo {PDF_MAX_ROWS:,} filas y este reporte tiene {rows_total:,}. "
+        raise BusinessError(f"El PDF admite máximo {PDF_MAX_ROWS:,} filas y este reporte tiene {rows_total:,}. "
                                                     f"Expórtalo en Excel o filtra un periodo más corto.".replace(",", "."))
 
     page = landscape(A4) if report.landscape else A4

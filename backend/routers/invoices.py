@@ -1,22 +1,17 @@
 import re
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, Response, BackgroundTasks
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ReturnDocument
+from fastapi import APIRouter, HTTPException, Depends, Query
+from datetime import timedelta
+from typing import List, Optional, Dict, Any
 from core.dates import now_utc, as_datetime
 from core.database import db
 from core.database import get_db
-from core.security import get_current_user, get_password_hash, verify_password, create_access_token
+from core.security import get_current_user
 from core.permissions import require_permission, require_any_permission
 from core.transactions import run_in_transaction
 from core.counters import INVOICE_COUNTER, ensure_counter, next_number
 import uuid
-from models.auth import *
-from models.billing import *
-from models.inventory import *
-from models.entities import *
+from models.auth import User
+from models.billing import FioPaymentCreate, Invoice, InvoiceCreate, PaymentMethod, PaymentMethodCreate, PaymentMethodUpdate, Return, ReturnCreate, TaxRate, TaxRateCreate
 import io
 import csv
 from fastapi.responses import StreamingResponse
@@ -24,7 +19,7 @@ from ticket_generator import TicketPDFGenerator
 
 from core import audit
 from core.sales import created_at_range
-from core.clients import resolve_client, invoices_of_client_query, client_label
+from core.clients import resolve_client, invoices_of_client_query
 from core.pricing import unit_price_for
 from core.cash import CASH_METHOD, add_movement, session_for_money
 from core import credit

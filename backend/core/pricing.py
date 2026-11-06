@@ -12,7 +12,7 @@ P1.17 · Precios de venta:
 import math
 from typing import Iterable, List, Optional
 
-from fastapi import HTTPException
+from core.errors import BusinessError, DomainError
 
 DEFAULT_PRICE_LIST = "default"
 
@@ -21,9 +21,9 @@ def _number(value, field: str) -> float:
     try:
         n = float(value)
     except (TypeError, ValueError):
-        raise HTTPException(status_code=400, detail=f"El {field} debe ser un número.")
+        raise BusinessError(f"El {field} debe ser un número.")
     if math.isnan(n) or math.isinf(n):
-        raise HTTPException(status_code=400, detail=f"El {field} debe ser un número.")
+        raise BusinessError(f"El {field} debe ser un número.")
     return n
 
 
@@ -64,7 +64,7 @@ def pricing_problem(purchase_price, tax_rate, prices: Optional[Iterable]) -> Opt
         if DEFAULT_PRICE_LIST not in seen:
             return (f"El precio de la lista '{DEFAULT_PRICE_LIST}' es obligatorio: es el que se cobra cuando el "
                     f"cliente tiene una lista para la que el producto no tiene precio.")
-    except HTTPException as exc:
+    except DomainError as exc:
         return exc.detail
     return None
 
@@ -95,13 +95,13 @@ async def validate_price_lists(prices, previous_prices=None) -> None:
     previous = {_price_list_of(p) for p in (previous_prices or [])}
     problem = price_lists_problem(prices, await price_lists_catalog(), previous)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise BusinessError(problem)
 
 
 def validate_pricing(purchase_price, tax_rate, prices) -> None:
     problem = pricing_problem(purchase_price, tax_rate, prices)
     if problem:
-        raise HTTPException(status_code=400, detail=problem)
+        raise BusinessError(problem)
 
 
 def unit_price_for(product: dict, price_list: Optional[str]) -> float:
@@ -111,12 +111,9 @@ def unit_price_for(product: dict, price_list: Optional[str]) -> float:
     for name in (price_list, DEFAULT_PRICE_LIST):
         if name and by_list.get(name) is not None:
             return float(by_list[name])
-    raise HTTPException(
-        status_code=400,
-        detail=f"El producto '{product.get('name', product.get('barcode'))}' no tiene precio de venta "
+    raise BusinessError(f"El producto '{product.get('name', product.get('barcode'))}' no tiene precio de venta "
                f"(ni para la lista '{price_list or DEFAULT_PRICE_LIST}' ni para '{DEFAULT_PRICE_LIST}'). "
-               f"Agrégale un precio en Productos.",
-    )
+               f"Agrégale un precio en Productos.")
 
 
 async def warn_products_without_price() -> int:

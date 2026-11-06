@@ -17,9 +17,9 @@ import math
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Dict, Optional
 
-from fastapi import HTTPException
+from core.errors import BusinessError
 
-from core.config import _env_number
+from core.config import settings
 from core.database import db
 from core.dates import as_datetime, now_utc
 
@@ -29,7 +29,7 @@ SETTINGS_ID = "credit"
 DEFAULT_SETTINGS = {"default_term_days": 7, "due_soon_days": 5}
 MAX_TERM_DAYS = 3650
 # Zona del negocio para cálculos del servidor sin navegador (p. ej. al arrancar): Colombia = 300.
-BUSINESS_TZ_OFFSET_MINUTES = int(_env_number("BUSINESS_TZ_OFFSET_MINUTES", 300))
+BUSINESS_TZ_OFFSET_MINUTES = settings.business_tz_offset_minutes
 
 DAY_MS = 86_400_000
 BUCKETS = [
@@ -51,9 +51,9 @@ async def get_settings() -> Dict:
 
 def validate_settings(default_term_days: int, due_soon_days: int) -> None:
     if default_term_days < 0 or default_term_days > MAX_TERM_DAYS:
-        raise HTTPException(status_code=400, detail=f"El plazo de crédito debe estar entre 0 y {MAX_TERM_DAYS} días.")
+        raise BusinessError(f"El plazo de crédito debe estar entre 0 y {MAX_TERM_DAYS} días.")
     if due_soon_days < 0 or due_soon_days > 365:
-        raise HTTPException(status_code=400, detail="Los días para «Por vencer» deben estar entre 0 y 365.")
+        raise BusinessError("Los días para «Por vencer» deben estar entre 0 y 365.")
 
 
 async def set_settings(default_term_days: int, due_soon_days: int, actor: str) -> Dict:
@@ -87,12 +87,12 @@ def parse_due_date(value: str, offset_minutes: int) -> datetime:
     try:
         d = datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
     except (ValueError, AttributeError):
-        raise HTTPException(status_code=400, detail=f"Fecha de vencimiento inválida '{value}': usa AAAA-MM-DD.")
+        raise BusinessError(f"Fecha de vencimiento inválida '{value}': usa AAAA-MM-DD.")
     today = local_today(offset_minutes)
     if d < today:
-        raise HTTPException(status_code=400, detail="La fecha de vencimiento no puede ser anterior a hoy.")
+        raise BusinessError("La fecha de vencimiento no puede ser anterior a hoy.")
     if d > today + timedelta(days=MAX_TERM_DAYS):
-        raise HTTPException(status_code=400, detail="La fecha de vencimiento es demasiado lejana (máximo 10 años).")
+        raise BusinessError("La fecha de vencimiento es demasiado lejana (máximo 10 años).")
     return end_of_local_day(d, offset_minutes)
 
 
@@ -221,12 +221,9 @@ async def check_credit_limit(client: dict, new_total: float, session=None) -> No
     if balance + new_total - limit > 0.005:
         fmt = lambda v: "$" + f"{v:,.0f}".replace(",", ".")
         name = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip()
-        raise HTTPException(
-            status_code=400,
-            detail=f"La venta supera el cupo de crédito de {name}: debe {fmt(balance)}, esta venta es de {fmt(new_total)} "
+        raise BusinessError(f"La venta supera el cupo de crédito de {name}: debe {fmt(balance)}, esta venta es de {fmt(new_total)} "
                    f"y el cupo es {fmt(limit)} (disponible {fmt(max(0.0, limit - balance))}). Véndele de contado o pide "
-                   f"a un administrador que amplíe el cupo.",
-        )
+                   f"a un administrador que amplíe el cupo.")
 
 
 # ---------------------------------------------------------------- arranque

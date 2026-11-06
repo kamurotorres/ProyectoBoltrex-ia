@@ -1,29 +1,19 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, Response, BackgroundTasks
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ReturnDocument
+from fastapi import APIRouter, Depends, Query
+from datetime import datetime, timedelta
+from typing import Optional
 from core.database import db
-from core.database import get_db
-from core.security import get_current_user, get_password_hash, verify_password, create_access_token
-from core.permissions import require_permission, require_any_permission
-from core.sales import invoices_query, sales_summary, SALE_STATUSES
-from core.pagination import page_params, paginate, search_filter, combine
-from routers.inventory import inventory_summary, LOW_STOCK_THRESHOLD
+from core.permissions import require_permission
+from core.sales import invoices_query, sales_summary
+from core.pagination import page_params, paginate, search_filter
+from routers.inventory import inventory_summary
 from core.dashboard import build_dashboard
 from core.user_protection import actor_is_admin
-from models.auth import *
-from models.billing import *
-from models.inventory import *
-from models.entities import *
+from models.auth import User
 import io
 import csv
 from fastapi.responses import StreamingResponse
-from ticket_generator import TicketPDFGenerator
 
 router = APIRouter(tags=["Reports"])
-db_dep = Depends(get_db)
 # ==================== REPORTS ====================
 
 STATUS_LABELS = {"completed": "Completada", "partial_return": "Devolución parcial", "returned": "Devuelta"}

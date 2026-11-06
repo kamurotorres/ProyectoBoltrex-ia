@@ -1,13 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, Response, BackgroundTasks
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ReturnDocument
-from core.dates import now_utc, as_datetime
+from fastapi import APIRouter, HTTPException, Depends, Request
+from datetime import datetime, timezone
+from pydantic import BaseModel
+from core.dates import now_utc
 from core.database import db
-from core.database import get_db
-from core.security import get_current_user, get_current_user_pending_password, current_session_id, get_password_hash, verify_password, create_access_token
+from core.security import get_current_user_pending_password, current_session_id, get_password_hash, verify_password, create_access_token
 from core import sessions
 from core import audit
 from core.config import LOGIN_MAX_ATTEMPTS
@@ -16,14 +12,8 @@ from core.passwords import password_problem
 from core.config import ALLOW_PUBLIC_REGISTRATION
 from core import login_throttle
 from core.login_throttle import client_ip
-from models.auth import *
-from models.billing import *
-from models.inventory import *
-from models.entities import *
-import io
-import csv
-from fastapi.responses import StreamingResponse
-from ticket_generator import TicketPDFGenerator
+from core.permissions import get_user_permissions
+from models.auth import User, UserCreate, UserLogin
 
 router = APIRouter(tags=["Auth"])
 
@@ -35,7 +25,6 @@ def session_settings() -> dict:
         "warning_minutes": SESSION_WARNING_MINUTES,
         "max_minutes": ACCESS_TOKEN_EXPIRE_MINUTES,
     }
-db_dep = Depends(get_db)
 # ==================== AUTH ROUTES ====================
 
 @router.post("/auth/register", response_model=User)
@@ -124,7 +113,6 @@ async def login(credentials: UserLogin, request: Request):
                        summary="Inicio de sesión correcto")
     
     # Get user permissions from rbac module
-    from routers.rbac import get_user_permissions
     user_permissions = await get_user_permissions(db, user["email"])
     
     # Convert permissions to simple dict
@@ -162,7 +150,6 @@ async def get_me(current_user: User = Depends(get_current_user_pending_password)
         raise HTTPException(status_code=404, detail="User not found")
     
     # Get permissions
-    from routers.rbac import get_user_permissions
     user_permissions = await get_user_permissions(db, user["email"])
     
     permissions_dict = {}

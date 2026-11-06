@@ -1,11 +1,8 @@
 """
 Módulo para generación de tickets PDF en formato térmico
 """
-from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
-from reportlab.lib.styles import getSampleStyleSheet
-from reportlab.platypus import Paragraph
 from io import BytesIO
 from datetime import datetime
 import textwrap
@@ -151,7 +148,6 @@ class TicketPDFGenerator:
         # Columnas: Cant | Producto | Total
         x_cant = self.margin
         x_prod = self.margin + 8 * mm
-        x_total = self.width - self.margin - 15 * mm
 
         c.drawString(x_cant, self.current_y, "CANT")
         c.drawString(x_prod, self.current_y, "PRODUCTO")

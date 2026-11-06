@@ -20,7 +20,9 @@ import io
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
+
+from core.errors import BusinessError
 
 MAX_ROWS = 20000
 Row = Dict[str, Any]
@@ -45,7 +47,7 @@ def _decode(content: bytes) -> str:
             return content.decode(enc)
         except UnicodeDecodeError:
             continue
-    raise HTTPException(status_code=400, detail="No se pudo leer el CSV: guárdalo con codificación UTF-8.")
+    raise BusinessError("No se pudo leer el CSV: guárdalo con codificación UTF-8.")
 
 
 def _read_csv(content: bytes) -> List[List[Any]]:
@@ -64,7 +66,7 @@ def _read_xlsx(content: bytes) -> List[List[Any]]:
     try:
         wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"No se pudo leer el Excel: {exc}")
+        raise BusinessError(f"No se pudo leer el Excel: {exc}")
     ws = wb.worksheets[0]
     rows = [list(r) for r in ws.iter_rows(values_only=True)]
     wb.close()
@@ -80,16 +82,16 @@ def read_table(file: UploadFile) -> Tuple[List[str], List[Tuple[int, Row]]]:
     elif name.endswith(".xlsx"):
         raw = _read_xlsx(content)
     elif name.endswith(".xls"):
-        raise HTTPException(status_code=400, detail="El formato .xls (Excel antiguo) no es compatible: guarda el archivo como .xlsx o CSV.")
+        raise BusinessError("El formato .xls (Excel antiguo) no es compatible: guarda el archivo como .xlsx o CSV.")
     else:
-        raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel (.xlsx).")
+        raise BusinessError("Formato de archivo no soportado. Use CSV o Excel (.xlsx).")
     if not raw:
-        raise HTTPException(status_code=400, detail="El archivo está vacío: la primera fila debe tener los nombres de las columnas.")
+        raise BusinessError("El archivo está vacío: la primera fila debe tener los nombres de las columnas.")
     header = [str(h).strip() if h is not None else "" for h in raw[0]]
     while header and header[-1] == "":
         header.pop()
     if not any(header):
-        raise HTTPException(status_code=400, detail="La primera fila debe tener los nombres de las columnas.")
+        raise BusinessError("La primera fila debe tener los nombres de las columnas.")
     rows: List[Tuple[int, Row]] = []
     for number, values in enumerate(raw[1:], start=2):
         cells = [_clean(v) for v in values]
@@ -98,7 +100,7 @@ def read_table(file: UploadFile) -> Tuple[List[str], List[Tuple[int, Row]]]:
         row = {col: (cells[i] if i < len(cells) else None) for i, col in enumerate(header) if col}
         rows.append((number, row))
         if len(rows) > MAX_ROWS:
-            raise HTTPException(status_code=400, detail=f"El archivo tiene más de {MAX_ROWS:,} filas: divídelo en varios.".replace(",", "."))
+            raise BusinessError(f"El archivo tiene más de {MAX_ROWS:,} filas: divídelo en varios.".replace(",", "."))
     return [h for h in header if h], rows
 
 
