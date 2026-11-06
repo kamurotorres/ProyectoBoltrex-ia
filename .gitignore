@@ -171,3 +171,6 @@ backups/
 deploy/backup/rclone/*
 !deploy/backup/rclone/.gitkeep
 
+
+# P2.24: logs de scripts/run_all_tests.sh
+.test-logs/

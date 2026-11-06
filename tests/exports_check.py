@@ -229,17 +229,23 @@ check("ajustes en PDF", requests.get(f"{B}/inventory/adjustments/export", header
 cj = requests.post(f"{B}/cash/open", headers=A, json={"opening_amount": 50000})
 sid = cj.json()["session_id"] if cj.ok else (requests.get(f"{B}/cash/current", headers=A).json()["session"] or {}).get("session_id")
 sell(P2, 1)                                       # 3.000 en efectivo a esta caja
-expected = int(requests.get(f"{B}/cash/current", headers=A).json()["session"]["summary"]["expected_cash"])
+expected = int(round(requests.get(f"{B}/cash/current", headers=A).json()["session"]["summary"]["expected_cash"]))
 den, rest = {}, expected
 for bill in (100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50):
     if rest >= bill:
         den[str(bill)], rest = rest // bill, rest % bill
-rc = requests.post(f"{B}/cash/sessions/{sid}/close", headers=A, json={"denominations": den})
+# Con datos de otras baterías puede quedar un resto que no se cuenta con billetes/monedas (< $50):
+# entonces se cierra con observación (faltante) en vez de cuadrada.
+body = {"denominations": den}
+if rest:
+    body["notes"] = "Resto sin denominación (prueba)"
+rc = requests.post(f"{B}/cash/sessions/{sid}/close", headers=A, json=body)
 assert rc.ok, rc.text
 exp_txt = "$" + f"{expected:,}".replace(",", ".")
+diff_txt = "Cuadrada" if not rest else "Faltante"
 r = requests.get(f"{B}/cash/sessions/{sid}/export", headers=A, params={"tz_offset_minutes": OFFSET})
 txt = pdf_text(r)
-check(f"cierre de caja en PDF A4: caja, esperado {exp_txt}, cuadrada y arqueo", r.ok and sid in txt and exp_txt[1:] in txt and "Cuadrada" in txt
+check(f"cierre de caja en PDF A4: caja, esperado {exp_txt}, diferencia ({diff_txt}) y arqueo", r.ok and sid in txt and exp_txt[1:] in txt and diff_txt in txt
       and "Arqueo" in txt, (r.status_code, txt[:300]))
 r = requests.get(f"{B}/cash/sessions/{sid}/export", headers=A, params={"format": "xlsx"})
 check("…en Excel con hojas por forma de pago, movimientos y arqueo", r.ok and wb(r).sheetnames == ["Resumen", "Por forma de pago", "Movimientos", "Arqueo"],
