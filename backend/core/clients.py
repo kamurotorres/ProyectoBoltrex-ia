@@ -9,7 +9,7 @@ clientes distintos. Toda búsqueda de un cliente concreto pasa por `resolve_clie
 import logging
 from typing import Optional
 
-from fastapi import HTTPException
+from core.errors import BusinessError, NotFoundError
 
 from core.database import db
 
@@ -28,20 +28,16 @@ async def resolve_client(document_number: str, document_type: Optional[str] = No
         client = await db.clients.find_one({"document_type": document_type, "document_number": document_number},
                                            projection, session=session)
         if not client:
-            raise HTTPException(status_code=404,
-                                detail=f"No existe un cliente con el documento {client_label(document_type, document_number)}.")
+            raise NotFoundError(f"No existe un cliente con el documento {client_label(document_type, document_number)}.")
         return client
 
     matches = await db.clients.find({"document_number": document_number}, projection, session=session).to_list(10)
     if not matches:
-        raise HTTPException(status_code=404, detail=f"No existe un cliente con el documento {document_number}.")
+        raise NotFoundError(f"No existe un cliente con el documento {document_number}.")
     if len(matches) > 1:
         types = ", ".join(sorted({m.get("document_type", "?") for m in matches}))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Hay {len(matches)} clientes con el documento {document_number} ({types}). "
-                   f"Indica el tipo de documento.",
-        )
+        raise BusinessError(f"Hay {len(matches)} clientes con el documento {document_number} ({types}). "
+                   f"Indica el tipo de documento.")
     return matches[0]
 
 

@@ -1,27 +1,21 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, Response, BackgroundTasks
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
-from motor.motor_asyncio import AsyncIOMotorDatabase
-from pymongo import ReturnDocument
-from core.dates import now_utc, as_datetime
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from typing import List, Dict, Any
+from pydantic import BaseModel
+from core.dates import now_utc
 from core.database import db
 from core.database import get_db
-from core.security import get_current_user, get_password_hash, verify_password, create_access_token
-from core.permissions import require_permission, require_any_permission
+from core.security import get_current_user, verify_password
+from core.permissions import require_permission
 from core.indexes import duplicate_key_message
 from pymongo.errors import DuplicateKeyError
 from core import audit
 from core.pricing import pricing_problem, price_lists_catalog, price_lists_problem
-from models.auth import *
-from models.billing import *
-from models.inventory import *
-from models.entities import *
+from models.auth import User
+from models.entities import TicketConfigUpdate
 from core.importing import has, read_table   # CSV / .xlsx sin pandas (mantenimiento 1b)
 import io
 import csv
 from fastapi.responses import StreamingResponse
-from ticket_generator import TicketPDFGenerator
 
 router = APIRouter(tags=["System"])
 db_dep = Depends(get_db)

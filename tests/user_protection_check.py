@@ -118,7 +118,7 @@ denied("C2 otro admin elimina a admin@boltrex.com", api(A2, "delete", "/rbac/use
 denied("C3 otro admin quita el rol a admin@boltrex.com", api(A2, "post", "/rbac/users/admin@boltrex.com/roles", ["Vendedor"]), 400, "protegido")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
-from fastapi import HTTPException  # noqa: E402
+from core.errors import DomainError  # noqa: E402
 from core import user_protection as guard  # noqa: E402
 
 
@@ -134,7 +134,7 @@ async def last_admin_case():
         # Actor: un Administrador distinto del objetivo (si no, otras reglas lo frenarían antes).
         await guard.check_user_update("admin@boltrex.com", ADM2, {"is_active": False})
         return None
-    except HTTPException as e:
+    except DomainError as e:   # mantenimiento fase 2: la regla lanza un error de dominio
         return e.detail
 
 msg = asyncio.run(last_admin_case())

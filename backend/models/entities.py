@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr, ConfigDict, validator
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from datetime import datetime, timezone
 from typing import Optional, List
 
@@ -42,7 +42,8 @@ class ClientCreate(BaseModel):
     credit_days: Optional[int] = Field(default=None, ge=0, le=3650)
     credit_limit: Optional[float] = Field(default=None, ge=0)
 
-    @validator('email', 'phone', 'address', pre=True)
+    @field_validator('email', 'phone', 'address', mode='before')
+    @classmethod
     def empty_str_to_none(cls, v):
         if v == '':
             return None
@@ -60,7 +61,8 @@ class ClientUpdate(BaseModel):
     credit_days: Optional[int] = Field(default=None, ge=0, le=3650)
     credit_limit: Optional[float] = Field(default=None, ge=0)
 
-    @validator('email', 'phone', 'address', pre=True)
+    @field_validator('email', 'phone', 'address', mode='before')
+    @classmethod
     def empty_str_to_none(cls, v):
         if v == '':
             return None
@@ -82,7 +84,8 @@ class SupplierCreate(BaseModel):
     email: Optional[EmailStr] = None
     address: Optional[str] = None
 
-    @validator('email', 'phone', 'address', 'contact_name', pre=True)
+    @field_validator('email', 'phone', 'address', 'contact_name', mode='before')
+    @classmethod
     def empty_str_to_none(cls, v):
         if v == '':
             return None
@@ -95,7 +98,8 @@ class SupplierUpdate(BaseModel):
     email: Optional[EmailStr] = None
     address: Optional[str] = None
 
-    @validator('email', 'phone', 'address', 'contact_name', pre=True)
+    @field_validator('email', 'phone', 'address', 'contact_name', mode='before')
+    @classmethod
     def empty_str_to_none(cls, v):
         if v == '':
             return None

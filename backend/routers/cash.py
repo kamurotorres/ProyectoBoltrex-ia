@@ -1,6 +1,5 @@
 """Control de caja (backlog P2.31): apertura, movimientos, cierre con arqueo, historial y el
 interruptor "Exigir caja abierta para vender". Reglas en core/cash.py."""
-from datetime import datetime
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException

@@ -14,9 +14,9 @@ Las alertas se calculan al consultar (nunca quedan desactualizadas). Cada una ti
 claves que el usuario tenía al marcar, podado a las que siguen vigentes (así una alerta que se
 resolvió y vuelve a aparecer avisa de nuevo).
 """
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-from fastapi import HTTPException
+from core.errors import BusinessError
 
 from core.database import db
 from core.dates import now_utc
@@ -36,7 +36,7 @@ async def get_inventory_settings() -> Dict:
 
 async def set_inventory_settings(low_stock_threshold: int, actor: str) -> Dict:
     if low_stock_threshold < 0 or low_stock_threshold > 1_000_000:
-        raise HTTPException(status_code=400, detail="El stock mínimo general debe ser un número entero de 0 o más.")
+        raise BusinessError("El stock mínimo general debe ser un número entero de 0 o más.")
     await db.system_settings.update_one(
         {"_id": SETTINGS_ID},
         {"$set": {"low_stock_threshold": int(low_stock_threshold), "updated_at": now_utc(), "updated_by": actor}},

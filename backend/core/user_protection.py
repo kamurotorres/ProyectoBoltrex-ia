@@ -13,11 +13,13 @@ Reglas:
   6. El rol Administrador no se elimina, no se desactiva y sus permisos no se modifican.
   7. Quien no es Administrador no modifica los permisos de un rol que él mismo tiene.
 
-Cada violación lanza HTTPException con un mensaje en español para mostrar al usuario.
+Cada violación lanza un error de dominio (core/errors.py) con un mensaje en español para mostrar al usuario.
 """
 from typing import Iterable, Optional
 
-from fastapi import HTTPException, status
+from fastapi import status
+
+from core.errors import BusinessError, ForbiddenError, NotFoundError
 
 from core.config import PROTECTED_ADMIN_EMAIL
 from core.database import db
@@ -26,7 +28,8 @@ ADMIN_ROLE = "Administrador"
 
 
 def _deny(message: str, code: int = status.HTTP_400_BAD_REQUEST):
-    raise HTTPException(status_code=code, detail=message)
+    # Mantenimiento fase 2: error de dominio (el manejador global responde {"detail": mensaje} con el código).
+    raise {403: ForbiddenError, 404: NotFoundError}.get(code, BusinessError)(message)
 
 
 async def _user(email: str) -> Optional[dict]:
