@@ -5,7 +5,7 @@ from core.database import db
 from core.permissions import require_permission
 from core.sales import invoices_query, sales_summary
 from core.pagination import page_params, paginate, search_filter
-from routers.inventory import inventory_summary
+from services.inventory import inventory_summary
 from core.dashboard import build_dashboard
 from core.user_protection import actor_is_admin
 from models.auth import User
@@ -74,7 +74,7 @@ async def export_sales_report(
     """TODAS las facturas del periodo (P1.18). P2.33: format = csv (por defecto) · xlsx · pdf."""
     from core.exporting import check_format
     if check_format(format) != "csv":
-        from routers.exports import sales_report
+        from services.exports import sales_report
         return await sales_report(start_date, end_date, tz_offset_minutes, current_user, format)
     query = invoices_query(start_date, end_date, tz_offset_minutes)
 
@@ -107,7 +107,7 @@ async def export_inventory_report(format: str = "csv", tz_offset_minutes: int = 
     """TODOS los productos (P1.18). P2.33: format = csv (por defecto) · xlsx · pdf."""
     from core.exporting import check_format
     if check_format(format) != "csv":
-        from routers.exports import inventory_report
+        from services.exports import inventory_report
         return await inventory_report(current_user, format, tz_offset_minutes)
     async def rows():
         from core.alerts import effective_min, get_inventory_settings
@@ -152,7 +152,9 @@ async def get_dashboard_stats(current_user: User = Depends(require_permission("d
     # P1.14: ventas netas de todas las facturas (las devoluciones parciales ya no desaparecen).
     summary = await sales_summary(invoices_query())
 
-    low_stock = await db.products.count_documents({"stock": {"$lt": 10}})
+    # Misma regla de bajo stock que Inventario / Dashboard / alertas (mínimo propio o el general, P2.34);
+    # antes este endpoint antiguo contaba con un 10 fijo.
+    low_stock = (await inventory_summary())["low_stock_count"]
 
     return {
         "total_products": total_products,
