@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,9 +26,12 @@ import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const PriceLists = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: paginadas y buscadas en el servidor (paginated=true; sin él, la lista completa para selectores).
   const list = usePaginatedList(`${API}/price-lists`, { params: { paginated: true }, errorMessage: 'Error al cargar listas de precios' });
   const [loading, setLoading] = useState(true);
@@ -58,10 +59,10 @@ const PriceLists = () => {
     setIsSubmitting(true);
     try {
       if (editMode) {
-        await axios.put(`${API}/price-lists/${encodeURIComponent(currentPL.name)}`, formData);
+        await api.put(`/price-lists/${encodeURIComponent(currentPL.name)}`, formData);
         toast.success('Lista de precios actualizada');
       } else {
-        await axios.post(`${API}/price-lists`, formData);
+        await api.post(`/price-lists`, formData);
         toast.success('Lista de precios creada');
       }
       fetchData();
@@ -93,9 +94,9 @@ const PriceLists = () => {
   };
 
   const handleDelete = async (name) => {
-    if (!window.confirm('¿Estás seguro de eliminar esta lista de precios?')) return;
+    if (!(await confirm('¿Estás seguro de eliminar esta lista de precios?', { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/price-lists/${encodeURIComponent(name)}`);
+      await api.delete(`/price-lists/${encodeURIComponent(name)}`);
       toast.success('Lista de precios eliminada');
       fetchData();
     } catch (error) {

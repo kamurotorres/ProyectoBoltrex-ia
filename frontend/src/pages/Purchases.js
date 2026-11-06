@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +28,8 @@ import Pagination from '@/components/Pagination';
 import ExportMenu from '@/components/ExportMenu';
 import { getErrorMessage } from '@/lib/utils';
 import { notifyDataChanged } from '@/lib/events';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 // Búsqueda en el servidor para los desplegables del formulario (P1.18).
 const useServerSearch = (url, text, pageSize = 10) => {
@@ -56,6 +57,7 @@ const useServerSearch = (url, text, pageSize = 10) => {
 
 const Purchases = () => {
   const { canCreate, canUpdate } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: compras paginadas en el servidor; proveedores y productos se buscan en el servidor.
   const [statusFilter, setStatusFilter] = useState('');
   const list = usePaginatedList(`${API}/purchases`, {
@@ -215,16 +217,16 @@ const Purchases = () => {
     setIsSubmitting(true);
     try {
       if (dialogMode === 'edit') {
-        await axios.put(`${API}/purchases/${currentPurchase.purchase_number}`, payload);
+        await api.put(`/purchases/${currentPurchase.purchase_number}`, payload);
         toast.success('Compra actualizada');
       } else {
-        await axios.post(`${API}/purchases`, payload);
+        await api.post(`/purchases`, payload);
         toast.success('Compra creada en estado Borrador');
       }
       fetchData();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar compra');
+      toast.error(getErrorMessage(error, 'Error al guardar compra'));
     } finally {
       setIsSubmitting(false);
     }
@@ -233,15 +235,15 @@ const Purchases = () => {
   // === Confirm purchase ===
   const handleConfirm = async (purchaseNumber) => {
     if (confirmingId) return;
-    if (!window.confirm('¿Estás seguro de procesar esta compra?\nEsto actualizará el inventario y no se podrá editar.')) return;
+    if (!(await confirm('¿Estás seguro de procesar esta compra?\nEsto actualizará el inventario y no se podrá editar.', { confirmLabel: 'Procesar compra' }))) return;
     setConfirmingId(purchaseNumber);
     try {
-      await axios.post(`${API}/purchases/${purchaseNumber}/confirm`);
+      await api.post(`/purchases/${purchaseNumber}/confirm`);
       notifyDataChanged();
       toast.success('Compra confirmada e inventario actualizado');
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al confirmar compra');
+      toast.error(getErrorMessage(error, 'Error al confirmar compra'));
     } finally {
       setConfirmingId(null);
     }

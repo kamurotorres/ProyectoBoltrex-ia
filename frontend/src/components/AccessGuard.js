@@ -1,10 +1,10 @@
 import React, { useContext, useEffect, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { Lock } from 'lucide-react';
-import { AuthContext, API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { canAccessSection, findSection, homePath } from '@/lib/access';
+import { api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 // Rutas protegidas por permiso (backlog P1.13).
 
@@ -44,7 +44,7 @@ export const AccessDenied = ({ path, section }) => {
   useEffect(() => {
     if (reported.current) return;
     reported.current = true;
-    axios.post(`${API}/audit/access-denied`, { path, section: section?.label || null }).catch(() => {});
+    api.post(`/audit/access-denied`, { path, section: section?.label || null }).catch(() => {});
   }, [path, section]);
 
   return (

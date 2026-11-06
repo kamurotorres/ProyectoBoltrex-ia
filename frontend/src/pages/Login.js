@@ -1,7 +1,5 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { AuthContext, API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +8,8 @@ import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
 import BoltrexLogo from '@/components/BoltrexLogo';
 import { takeLogoutReason } from '@/lib/session';
+import { api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 // El registro público está desactivado en el backend por defecto (ALLOW_PUBLIC_REGISTRATION).
 // Para mostrar el enlace "Regístrate", construir el frontend con REACT_APP_ALLOW_REGISTRATION=true.
@@ -39,7 +39,7 @@ const Login = () => {
 
     try {
       if (isRegister) {
-        await axios.post(`${API}/auth/register`, {
+        await api.post(`/auth/register`, {
           email,
           password,
           full_name: fullName,
@@ -48,7 +48,7 @@ const Login = () => {
         toast.success('Cuenta creada exitosamente. Por favor inicia sesión.');
         setIsRegister(false);
       } else {
-        const response = await axios.post(`${API}/auth/login`, { email, password });
+        const response = await api.post(`/auth/login`, { email, password });
         login(response.data.access_token, response.data.user, response.data.session);
         if (response.data.user?.must_change_password) {
           toast.warning('Por seguridad debes cambiar tu contraseña antes de continuar.');

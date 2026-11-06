@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,9 +17,12 @@ import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const Categories = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: paginadas y buscadas en el servidor (paginated=true; sin él, la lista completa para selectores).
   const list = usePaginatedList(`${API}/categories`, { params: { paginated: true }, errorMessage: 'Error al cargar categorías' });
   const [loading, setLoading] = useState(true);
@@ -47,10 +48,10 @@ const Categories = () => {
     setIsSubmitting(true);
     try {
       if (editMode) {
-        await axios.put(`${API}/categories/${currentCategory.name}`, formData);
+        await api.put(`/categories/${currentCategory.name}`, formData);
         toast.success('Categoría actualizada');
       } else {
-        await axios.post(`${API}/categories`, formData);
+        await api.post(`/categories`, formData);
         toast.success('Categoría creada');
       }
       fetchCategories();
@@ -63,9 +64,9 @@ const Categories = () => {
   };
 
   const handleDelete = async (name) => {
-    if (!window.confirm('¿Estás seguro de eliminar esta categoría?')) return;
+    if (!(await confirm('¿Estás seguro de eliminar esta categoría?', { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/categories/${name}`);
+      await api.delete(`/categories/${name}`);
       toast.success('Categoría eliminada');
       fetchCategories();
     } catch (error) {

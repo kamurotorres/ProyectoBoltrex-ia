@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
-import { API, AuthContext } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,13 +10,6 @@ import {
   DialogTitle,
   DialogFooter
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -34,6 +25,8 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
+import { API, api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 const UsersManagement = () => {
   const { canCreate, canUpdate } = usePermissions();
@@ -65,7 +58,7 @@ const UsersManagement = () => {
   const fetchData = async () => {
     try {
       const [rolesRes] = await Promise.all([
-        axios.get(`${API}/rbac/roles`)
+        api.get(`/rbac/roles`)
       ]);
       list.reload();
       setRoles(rolesRes.data);
@@ -83,10 +76,10 @@ const UsersManagement = () => {
     setIsSubmitting(true);
     try {
       if (editMode) {
-        await axios.put(`${API}/rbac/users/${currentUser.email}`, formData);
+        await api.put(`/rbac/users/${currentUser.email}`, formData);
         toast.success('Usuario actualizado');
       } else {
-        await axios.post(`${API}/rbac/users`, formData);
+        await api.post(`/rbac/users`, formData);
         toast.success('Usuario creado');
       }
       fetchData();
@@ -133,7 +126,7 @@ const UsersManagement = () => {
 
   const handleToggleActive = async (email, isActive) => {
     try {
-      await axios.put(`${API}/rbac/users/${email}`, { is_active: !isActive });
+      await api.put(`/rbac/users/${email}`, { is_active: !isActive });
       toast.success(isActive ? 'Usuario desactivado' : 'Usuario activado');
       fetchData();
     } catch (error) {
@@ -151,7 +144,7 @@ const UsersManagement = () => {
     if (isAssigning) return;
     setIsAssigning(true);
     try {
-      await axios.post(`${API}/rbac/users/${currentUser.email}/roles`, selectedUserRoles);
+      await api.post(`/rbac/users/${currentUser.email}/roles`, selectedUserRoles);
       toast.success('Roles asignados correctamente');
       fetchData();
       setRoleDialogOpen(false);

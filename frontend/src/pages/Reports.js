@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { API } from '@/App';
+import React, { useState } from 'react';
 import ExportMenu from '@/components/ExportMenu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +13,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { FileText, Filter } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { money2 as money } from '@/lib/format';
+import { API } from '@/api/client';
 
-const money = (v) => '$' + Number(v || 0).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const STATUS = {
   completed: { label: 'Completada', className: 'bg-green-500/15 text-green-700 dark:text-green-400' },
   partial_return: { label: 'Dev. parcial', className: 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' },

@@ -1,13 +1,13 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { AuthContext, API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
+import { api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 const MIN_LENGTH = 8;
 
@@ -43,7 +43,7 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      const response = await axios.post(`${API}/auth/change-password`, {
+      const response = await api.post(`/auth/change-password`, {
         current_password: currentPassword,
         new_password: newPassword,
       });

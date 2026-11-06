@@ -1,6 +1,6 @@
 import { useContext } from 'react';
-import { AuthContext } from '@/App';
 import { can, canAny, isAdmin } from '@/lib/access';
+import { AuthContext } from '@/auth/AuthProvider';
 
 /**
  * Permisos del usuario actual (backlog P1.13). Uso en una pantalla:

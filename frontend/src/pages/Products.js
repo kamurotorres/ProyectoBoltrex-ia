@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +32,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/lib/utils';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 // P1.16/P1.17: mismas reglas que el backend (core/pricing.py). El backend vuelve a validar.
 const DEFAULT_PRICE_LIST = 'default';
@@ -62,6 +62,7 @@ const pricingProblem = ({ purchase_price, tax_rate, prices }) => {
 
 const Products = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: productos paginados y buscados en el servidor.
   const list = usePaginatedList(`${API}/products`, { errorMessage: 'Error al cargar productos' });
   const [categories, setCategories] = useState([]);
@@ -89,8 +90,8 @@ const Products = () => {
   const fetchData = async () => {
     try {
       const [categoriesRes, priceListsRes] = await Promise.all([
-        axios.get(`${API}/categories`),
-        axios.get(`${API}/price-lists`)
+        api.get(`/categories`),
+        api.get(`/price-lists`)
       ]);
       list.reload();
       setCategories(categoriesRes.data);
@@ -129,10 +130,10 @@ const Products = () => {
       };
 
       if (editMode) {
-        await axios.put(`${API}/products/${currentProduct.barcode}`, payload);
+        await api.put(`/products/${currentProduct.barcode}`, payload);
         toast.success('Producto actualizado');
       } else {
-        await axios.post(`${API}/products`, payload);
+        await api.post(`/products`, payload);
         toast.success('Producto creado');
       }
       fetchData();
@@ -145,9 +146,9 @@ const Products = () => {
   };
 
   const handleDelete = async (barcode) => {
-    if (!window.confirm('¿Estás seguro de eliminar este producto?')) return;
+    if (!(await confirm('¿Estás seguro de eliminar este producto?', { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/products/${barcode}`);
+      await api.delete(`/products/${barcode}`);
       toast.success('Producto eliminado');
       fetchData();
     } catch (error) {
@@ -159,7 +160,7 @@ const Products = () => {
   // (o activada/desactivada) en otra pestaña se refleja sin recargar la página.
   const refreshPriceLists = async () => {
     try {
-      const res = await axios.get(`${API}/price-lists`);
+      const res = await api.get(`/price-lists`);
       setPriceLists(res.data);
     } catch (error) {
       toast.error(getErrorMessage(error, 'No se pudieron cargar las listas de precios'));

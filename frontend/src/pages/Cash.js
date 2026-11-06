@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { Banknote, Lock, Plus, Printer, Unlock, Eye } from 'lucide-react';
-import { API, AuthContext } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,13 +10,14 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import ExportMenu from '@/components/ExportMenu';
+import { money, shortDateTime as when } from '@/lib/format';
+import { API, api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 // Control de caja (backlog P2.31): un turno por cajero con base inicial, movimientos (ventas
 // de contado, abonos, reembolsos por devolución, ingresos y egresos manuales) y cierre con
 // arqueo por denominaciones. Las reglas están en el backend (core/cash.py).
 
-const money = (v) => '$' + Math.round(Number(v || 0)).toLocaleString('es-CO');
-const when = (iso) => (iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 const DEFAULT_DENOMS = { bills: [100000, 50000, 20000, 10000, 5000, 2000], coins: [1000, 500, 200, 100, 50] };
 
 function SummaryTable({ summary }) {
@@ -157,7 +156,7 @@ function CloseDialog({ open, onOpenChange, cashSession, denoms, forced, onClosed
       } else {
         body.counted_cash = counted;
       }
-      const res = await axios.post(`${API}/cash/sessions/${cashSession.session_id}/close`, body);
+      const res = await api.post(`/cash/sessions/${cashSession.session_id}/close`, body);
       toast.success(`Caja ${cashSession.session_id} cerrada${res.data.difference ? ` con ${res.data.difference > 0 ? 'sobrante' : 'faltante'} de ${money(Math.abs(res.data.difference))}` : ' cuadrada'}.`);
       onClosed(res.data);
     } catch (error) {
@@ -248,7 +247,7 @@ const Cash = () => {
 
   const load = useCallback(async () => {
     try {
-      const [cur, set] = await Promise.all([axios.get(`${API}/cash/current`), axios.get(`${API}/cash/settings`)]);
+      const [cur, set] = await Promise.all([api.get(`/cash/current`), api.get(`/cash/settings`)]);
       setCurrent(cur.data);
       setSettings(set.data);
     } catch (error) {
@@ -270,7 +269,7 @@ const Cash = () => {
     }
     setBusy(true);
     try {
-      const res = await axios.post(`${API}/cash/open`, { opening_amount: amount, notes: opening.notes || null });
+      const res = await api.post(`/cash/open`, { opening_amount: amount, notes: opening.notes || null });
       toast.success(`Caja ${res.data.session_id} abierta${res.data.attached_pending ? ` (se asociaron ${res.data.attached_pending} movimiento(s) pendientes)` : ''}.`);
       setOpening({ amount: '', notes: '' });
       refresh();
@@ -287,7 +286,7 @@ const Cash = () => {
     if (mov.reason.trim().length < 3) { toast.error('Escribe el motivo del movimiento (mínimo 3 caracteres).'); return; }
     setBusy(true);
     try {
-      await axios.post(`${API}/cash/movements`, { kind: mov.kind, amount, reason: mov.reason.trim() });
+      await api.post(`/cash/movements`, { kind: mov.kind, amount, reason: mov.reason.trim() });
       toast.success(mov.kind === 'income' ? 'Ingreso registrado' : 'Egreso registrado');
       setMovOpen(false);
       setMov({ kind: 'income', amount: '', reason: '' });
@@ -301,7 +300,7 @@ const Cash = () => {
 
   const showDetail = async (sid) => {
     try {
-      const res = await axios.get(`${API}/cash/sessions/${sid}`);
+      const res = await api.get(`/cash/sessions/${sid}`);
       setDetail(res.data);
     } catch (error) {
       toast.error(getErrorMessage(error, 'No se pudo cargar la caja'));

@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,12 +16,12 @@ import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/lib/utils';
 import { notifyDataChanged } from '@/lib/events';
+import { money as money0, ymdToDmy as dmy } from '@/lib/format';
+import { api } from '@/api/client';
 
 // P2.30: fechas locales AAAA-MM-DD para el vencimiento de las ventas a crédito.
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = (days) => { const d = new Date(); d.setDate(d.getDate() + Number(days || 0)); return ymd(d); };
-const dmy = (s) => (s ? s.split('-').reverse().join('/') : '');
-const money0 = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 
 const POS = () => {
   const { canCreate } = usePermissions();
@@ -54,7 +52,7 @@ const POS = () => {
     setCreditStatus(null);
     if (!selectedClient) return undefined;
     let cancelled = false;
-    axios.get(`${API}/credit/client-status`, {
+    api.get(`/credit/client-status`, {
       params: { document_number: selectedClient.document_number, document_type: selectedClient.document_type },
     }).then((r) => {
       if (cancelled) return;
@@ -74,8 +72,8 @@ const POS = () => {
   const fetchCashState = async () => {
     try {
       const [settingsRes, currentRes] = await Promise.all([
-        axios.get(`${API}/cash/settings`),
-        axios.get(`${API}/cash/current`).catch(() => ({ data: { session: null } })),
+        api.get(`/cash/settings`),
+        api.get(`/cash/current`).catch(() => ({ data: { session: null } })),
       ]);
       setCashState({ required: !!settingsRes.data.require_open_session, open: !!currentRes.data.session });
     } catch {
@@ -87,7 +85,7 @@ const POS = () => {
     fetchCashState();
     try {
       const [paymentMethodsRes] = await Promise.all([
-        axios.get(`${API}/payment-methods/active`)
+        api.get(`/payment-methods/active`)
       ]);
       setPaymentMethods(paymentMethodsRes.data);
 
@@ -218,7 +216,7 @@ const POS = () => {
 
   const downloadTicket = async (invoiceNumber) => {
     try {
-      const response = await axios.get(`${API}/pos/invoices/${invoiceNumber}/ticket`, {
+      const response = await api.get(`/pos/invoices/${invoiceNumber}/ticket`, {
         responseType: 'blob'
       });
 
@@ -265,7 +263,7 @@ const POS = () => {
         tz_offset_minutes: new Date().getTimezoneOffset()
       };
 
-      const response = await axios.post(`${API}/invoices`, invoiceData);
+      const response = await api.post(`/invoices`, invoiceData);
 
       const statusMessage = paymentStatus === 'pagado'
         ? `Factura ${response.data.invoice_number} creada - PAGADA con ${selectedPaymentMethod}`
@@ -341,7 +339,7 @@ const POS = () => {
     setSearchingProducts(true);
     const t = setTimeout(async () => {
       try {
-        const res = await axios.get(`${API}/products`, { params: { search: text, page_size: 20 } });
+        const res = await api.get(`/products`, { params: { search: text, page_size: 20 } });
         if (id !== productReq.current) return;
         const found = res.data.items || [];
         setProductResults(found);
@@ -371,7 +369,7 @@ const POS = () => {
     setSearchingClients(true);
     const t = setTimeout(async () => {
       try {
-        const res = await axios.get(`${API}/clients`, { params: { search: text, page_size: 20 } });
+        const res = await api.get(`/clients`, { params: { search: text, page_size: 20 } });
         if (id === clientReq.current) setClientResults(res.data.items || []);
       } catch (error) {
         if (id === clientReq.current) toast.error(getErrorMessage(error, 'Error al buscar clientes'));

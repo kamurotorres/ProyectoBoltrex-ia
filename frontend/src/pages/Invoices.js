@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
@@ -9,9 +8,6 @@ import {
   Filter,
   Download,
   Eye,
-  X,
-  ChevronLeft,
-  ChevronRight,
   Calendar,
   User,
   Receipt,
@@ -35,7 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { API } from '@/App';
+import { currency as formatCurrency, dateTime as formatDate } from '@/lib/format';
+import { API, api } from '@/api/client';
 
 const Invoices = () => {
   // P1.18: misma paginación que el resto de listados (componente común, 25/50/100 por página).
@@ -81,7 +78,7 @@ const Invoices = () => {
 
   const downloadTicket = async (invoiceNumber) => {
     try {
-      const response = await axios.get(`${API}/pos/invoices/${invoiceNumber}/ticket`, {
+      const response = await api.get(`/pos/invoices/${invoiceNumber}/ticket`, {
         responseType: 'blob'
       });
 
@@ -104,37 +101,13 @@ const Invoices = () => {
   const viewInvoiceDetail = async (invoice) => {
     try {
       // Fetch full invoice detail with payments and returns history
-      const response = await axios.get(`${API}/invoices/${invoice.invoice_number}`);
+      const response = await api.get(`/invoices/${invoice.invoice_number}`);
       setSelectedInvoice(response.data);
       setShowDetail(true);
     } catch (error) {
       toast.error('Error al cargar el detalle de la factura');
       console.error(error);
     }
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount);
   };
 
   const getStatusBadge = (status) => {

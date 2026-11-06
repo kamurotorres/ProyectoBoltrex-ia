@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +15,10 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import ExportMenu from '@/components/ExportMenu';
 import { notifyDataChanged } from '@/lib/events';
+import { money, signedMoney } from '@/lib/format';
+import { API, api } from '@/api/client';
+
+export { signedMoney };   // Inventario lo importa desde aquí
 
 // P2.32: ajustes de inventario (entrada / salida / conteo físico). Un ajuste no se edita ni se borra.
 export const KIND_LABELS = { entrada: 'Entrada', salida: 'Salida', conteo: 'Conteo físico' };
@@ -25,8 +27,6 @@ const KIND_HELP = {
   salida: 'Resta unidades del stock (merma, daño, vencido, consumo interno…). Nunca deja el stock negativo.',
   conteo: 'Escribe lo que contaste: el sistema calcula la diferencia y deja el stock en lo contado.',
 };
-export const signedMoney = (v) => `${v < 0 ? '−' : v > 0 ? '+' : ''}$${Math.abs(Number(v || 0)).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
-const money = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 const tz = () => new Date().getTimezoneOffset();
 
 // ------------------------------------------------------------------ formulario de nuevo ajuste
@@ -49,7 +49,7 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
     setResults([]);
     setItems(initialProduct ? [{ barcode: initialProduct.barcode, name: initialProduct.name, stock: initialProduct.stock,
                                  cost: initialProduct.purchase_price || 0, value: '' }] : []);
-    axios.get(`${API}/adjustment-reasons`, { params: { active_only: true } })
+    api.get(`/adjustment-reasons`, { params: { active_only: true } })
       .then((r) => setReasons(r.data))
       .catch((e) => toast.error(getErrorMessage(e, 'No se pudieron cargar los motivos de ajuste')));
   }, [open, initialProduct]);
@@ -67,7 +67,7 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
     if (text.length < 2) { setResults([]); return undefined; }
     const t = setTimeout(async () => {
       try {
-        const r = await axios.get(`${API}/inventory`, { params: { search: text, page_size: 10 } });
+        const r = await api.get(`/inventory`, { params: { search: text, page_size: 10 } });
         setResults(r.data.items || []);
       } catch (e) {
         toast.error(getErrorMessage(e, 'Error al buscar productos'));
@@ -122,7 +122,7 @@ export const AdjustmentDialog = ({ open, onOpenChange, initialProduct, onSaved }
           ? { barcode: i.barcode, counted: Number(i.value), expected_stock: i.stock }
           : { barcode: i.barcode, quantity: Number(i.value) })),
       };
-      const r = await axios.post(`${API}/inventory/adjustments`, body);
+      const r = await api.post(`/inventory/adjustments`, body);
       toast.success(`Ajuste ${r.data.adjustment_number} guardado · valor ${signedMoney(r.data.total_value)}`);
       onOpenChange(false);
       notifyDataChanged();
@@ -273,7 +273,7 @@ export const AdjustmentsTab = ({ canAdjust, onNew, refreshKey }) => {
   const s = list.summary || {};
 
   useEffect(() => {
-    axios.get(`${API}/adjustment-reasons`).then((r) => setReasons(r.data)).catch(() => setReasons([]));
+    api.get(`/adjustment-reasons`).then((r) => setReasons(r.data)).catch(() => setReasons([]));
   }, []);
   useEffect(() => {
     if (refreshKey) list.reload();
@@ -282,7 +282,7 @@ export const AdjustmentsTab = ({ canAdjust, onNew, refreshKey }) => {
 
   const openDetail = async (number) => {
     try {
-      const r = await axios.get(`${API}/inventory/adjustments/${number}`);
+      const r = await api.get(`/inventory/adjustments/${number}`);
       setDetail(r.data);
     } catch (e) {
       toast.error(getErrorMessage(e, 'No se pudo cargar el ajuste'));

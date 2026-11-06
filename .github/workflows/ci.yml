@@ -104,6 +104,15 @@ jobs:
       - name: Mapa de permisos del menú
         run: node tests/frontend_access_check.js
 
+      - name: Sintaxis, imports y texto JSX suelto (todo src/)
+        run: node tests/frontend_syntax_check.js
+
+      - name: Formatos de dinero y fechas (lib/format.js)
+        run: node tests/frontend_format_check.js
+
+      - name: Lint (nombres sin definir)
+        run: bash tests/frontend_lint_check.sh
+
       - name: Build de la imagen Docker del frontend
         run: docker build -t boltrex-frontend:ci -f frontend/Dockerfile .
 

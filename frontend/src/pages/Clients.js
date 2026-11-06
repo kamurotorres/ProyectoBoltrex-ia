@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,10 +31,13 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/lib/utils';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { money } from '@/lib/format';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const Clients = () => {
   const { canCreate, canUpdate, canDelete, isAdmin } = usePermissions();
-  const money = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: clientes paginados y buscados en el servidor.
   const list = usePaginatedList(`${API}/clients`, { errorMessage: 'Error al cargar clientes' });
   const [documentTypes, setDocumentTypes] = useState([]);
@@ -68,8 +69,8 @@ const Clients = () => {
   const fetchData = async () => {
     try {
       const [docTypesRes, priceListsRes] = await Promise.all([
-        axios.get(`${API}/document-types`),
-        axios.get(`${API}/price-lists`)
+        api.get(`/document-types`),
+        api.get(`/price-lists`)
       ]);
       list.reload();
       setDocumentTypes(docTypesRes.data);
@@ -108,12 +109,12 @@ const Clients = () => {
 
       if (editMode) {
         // P1.15: tipo + número identifican al cliente (CC 123 y NIT 123 son distintos).
-        await axios.put(`${API}/clients/${encodeURIComponent(currentClient.document_number)}`, payload, {
+        await api.put(`/clients/${encodeURIComponent(currentClient.document_number)}`, payload, {
           params: { document_type: currentClient.document_type },
         });
         toast.success('Cliente actualizado');
       } else {
-        await axios.post(`${API}/clients`, payload);
+        await api.post(`/clients`, payload);
         toast.success('Cliente creado');
       }
       fetchData();
@@ -171,9 +172,9 @@ const Clients = () => {
   };
 
   const handleDelete = async (client) => {
-    if (!window.confirm(`¿Estás seguro de eliminar al cliente ${client.first_name} ${client.last_name} (${client.document_type} ${client.document_number})?`)) return;
+    if (!(await confirm(`¿Estás seguro de eliminar al cliente ${client.first_name} ${client.last_name} (${client.document_type} ${client.document_number})?`, { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/clients/${encodeURIComponent(client.document_number)}`, {
+      await api.delete(`/clients/${encodeURIComponent(client.document_number)}`, {
         params: { document_type: client.document_type },
       });
       toast.success('Cliente eliminado');

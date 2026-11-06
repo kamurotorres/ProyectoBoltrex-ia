@@ -1,6 +1,4 @@
 import React, { useState, useContext, useEffect } from 'react';
-import axios from 'axios';
-import { API, AuthContext } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +16,8 @@ import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { getErrorMessage } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 const affectedModules = [
   { icon: Package, label: 'Productos' },
@@ -43,14 +43,14 @@ const FactoryReset = () => {
   const handleReset = async () => {
     setLoading(true);
     try {
-      await axios.post(`${API}/system/factory-reset`, { password });
+      await api.post(`/system/factory-reset`, { password });
       toast.success('Sistema restablecido a valores de fábrica');
       setDialogOpen(false);
       setPassword('');
       logout();
       navigate('/login');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al restablecer el sistema');
+      toast.error(getErrorMessage(error, 'Error al restablecer el sistema'));
     } finally {
       setLoading(false);
     }
@@ -65,13 +65,13 @@ const FactoryReset = () => {
   const [requireCash, setRequireCash] = useState(null);
   const [savingCash, setSavingCash] = useState(false);
   useEffect(() => {
-    axios.get(`${API}/cash/settings`).then((r) => setRequireCash(!!r.data.require_open_session))
+    api.get(`/cash/settings`).then((r) => setRequireCash(!!r.data.require_open_session))
       .catch((e) => toast.error(getErrorMessage(e, 'No se pudo leer la configuración de caja')));
   }, []);
   const toggleRequireCash = async (value) => {
     setSavingCash(true);
     try {
-      const r = await axios.put(`${API}/cash/settings`, { require_open_session: value });
+      const r = await api.put(`/cash/settings`, { require_open_session: value });
       setRequireCash(!!r.data.require_open_session);
       toast.success(value ? 'Ahora se exige caja abierta para vender.' : 'Ya no se exige caja abierta para vender.');
     } catch (e) {
@@ -86,7 +86,7 @@ const FactoryReset = () => {
   const [lowInput, setLowInput] = useState('');
   const [savingInv, setSavingInv] = useState(false);
   useEffect(() => {
-    axios.get(`${API}/inventory/settings`).then((r) => { setInvCfg(r.data); setLowInput(String(r.data.low_stock_threshold)); })
+    api.get(`/inventory/settings`).then((r) => { setInvCfg(r.data); setLowInput(String(r.data.low_stock_threshold)); })
       .catch((e) => toast.error(getErrorMessage(e, 'No se pudo leer la configuración de inventario')));
   }, []);
   const saveInv = async () => {
@@ -97,7 +97,7 @@ const FactoryReset = () => {
     }
     setSavingInv(true);
     try {
-      const r = await axios.put(`${API}/inventory/settings`, { low_stock_threshold: n });
+      const r = await api.put(`/inventory/settings`, { low_stock_threshold: n });
       setInvCfg(r.data);
       setLowInput(String(r.data.low_stock_threshold));
       toast.success('Stock mínimo general guardado.');
@@ -113,7 +113,7 @@ const FactoryReset = () => {
   const [creditForm, setCreditForm] = useState({ default_term_days: '', due_soon_days: '' });
   const [savingCredit, setSavingCredit] = useState(false);
   useEffect(() => {
-    axios.get(`${API}/credit/settings`).then((r) => {
+    api.get(`/credit/settings`).then((r) => {
       setCreditCfg(r.data);
       setCreditForm({ default_term_days: String(r.data.default_term_days), due_soon_days: String(r.data.due_soon_days) });
     }).catch((e) => toast.error(getErrorMessage(e, 'No se pudo leer la configuración de crédito')));
@@ -133,7 +133,7 @@ const FactoryReset = () => {
     }
     setSavingCredit(true);
     try {
-      const r = await axios.put(`${API}/credit/settings`, { default_term_days: term, due_soon_days: soon });
+      const r = await api.put(`/credit/settings`, { default_term_days: term, due_soon_days: soon });
       setCreditCfg(r.data);
       setCreditForm({ default_term_days: String(r.data.default_term_days), due_soon_days: String(r.data.due_soon_days) });
       toast.success('Configuración de crédito guardada. Aplica a las nuevas ventas a crédito.');
