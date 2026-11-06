@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,6 +14,8 @@ import { Upload, Download, FileText, AlertCircle, CheckCircle, Info } from 'luci
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/lib/utils';
+import { api } from '@/api/client';
 
 const Import = () => {
   const { canCreate } = usePermissions();
@@ -112,7 +112,7 @@ const Import = () => {
     formData.append('file', file);
 
     try {
-      const response = await axios.post(`${API}/import/${moduleId}`, formData, {
+      const response = await api.post(`/import/${moduleId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -127,7 +127,7 @@ const Import = () => {
         toast.warning(`${response.data.errors.length} registros con errores`);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al importar archivo');
+      toast.error(getErrorMessage(error, 'Error al importar archivo'));
       setResults(null);
     } finally {
       setLoading(false);
@@ -137,7 +137,7 @@ const Import = () => {
 
   const handleDownloadTemplate = async (moduleId) => {
     try {
-      const response = await axios.get(`${API}/import/templates/${moduleId}`, {
+      const response = await api.get(`/import/templates/${moduleId}`, {
         responseType: 'blob'
       });
 

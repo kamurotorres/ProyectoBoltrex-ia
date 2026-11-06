@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +21,7 @@ import { getErrorMessage } from '@/lib/utils';
 const ADMIN_ROLE = 'Administrador';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
+import { api } from '@/api/client';
 
 const RolesPermissions = () => {
   const { canCreate: canCreateRole, canUpdate: canUpdatePerm, canAny } = usePermissions();
@@ -44,15 +43,15 @@ const RolesPermissions = () => {
   const fetchData = async () => {
     try {
       const [rolesRes, modulesRes] = await Promise.all([
-        axios.get(`${API}/rbac/roles`),
-        axios.get(`${API}/rbac/modules`)
+        api.get(`/rbac/roles`),
+        api.get(`/rbac/modules`)
       ]);
       setRoles(rolesRes.data);
       setModules(modulesRes.data);
 
       const permsMap = {};
       for (const role of rolesRes.data) {
-        const permsRes = await axios.get(`${API}/rbac/permissions/${role.name}`);
+        const permsRes = await api.get(`/rbac/permissions/${role.name}`);
         permsMap[role.name] = {};
         permsRes.data.forEach(p => {
           permsMap[role.name][p.module_slug] = p.permissions;
@@ -69,7 +68,7 @@ const RolesPermissions = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API}/rbac/roles`, formData);
+      await api.post(`/rbac/roles`, formData);
       toast.success('Rol creado');
       fetchData();
       setDialogOpen(false);
@@ -93,7 +92,7 @@ const RolesPermissions = () => {
         [permission]: !currentPerms[permission]
       };
 
-      await axios.post(`${API}/rbac/permissions`, {
+      await api.post(`/rbac/permissions`, {
         role_name: roleName,
         module_slug: moduleSlug,
         permissions: newPerms

@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,9 +24,12 @@ import { getErrorMessage } from '@/lib/utils';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { usePermissions } from '@/hooks/usePermissions';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const Suppliers = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   // P1.18: proveedores paginados y buscados en el servidor.
   const list = usePaginatedList(`${API}/suppliers`, { errorMessage: 'Error al cargar proveedores' });
   const [loading, setLoading] = useState(true);
@@ -60,10 +61,10 @@ const Suppliers = () => {
     setIsSubmitting(true);
     try {
       if (editMode) {
-        await axios.put(`${API}/suppliers/${encodeURIComponent(currentSupplier.name)}`, formData);
+        await api.put(`/suppliers/${encodeURIComponent(currentSupplier.name)}`, formData);
         toast.success('Proveedor actualizado');
       } else {
-        await axios.post(`${API}/suppliers`, formData);
+        await api.post(`/suppliers`, formData);
         toast.success('Proveedor creado');
       }
       fetchSuppliers();
@@ -102,9 +103,9 @@ const Suppliers = () => {
   };
 
   const handleDelete = async (supplierName) => {
-    if (!window.confirm('¿Estás seguro de eliminar este proveedor?')) return;
+    if (!(await confirm('¿Estás seguro de eliminar este proveedor?', { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/suppliers/${encodeURIComponent(supplierName)}`);
+      await api.delete(`/suppliers/${encodeURIComponent(supplierName)}`);
       toast.success('Proveedor eliminado');
       fetchSuppliers();
     } catch (error) {

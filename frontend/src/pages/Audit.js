@@ -1,5 +1,4 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   ScrollText,
@@ -15,11 +14,13 @@ import {
   RefreshCw,
   X,
 } from 'lucide-react';
-import { API, AuthContext } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getErrorMessage } from '@/lib/utils';
+import { dateTimeSeconds as formatDate } from '@/lib/format';
+import { api } from '@/api/client';
+import { AuthContext } from '@/auth/AuthProvider';
 
 // Bitácora de auditoría (backlog P1.12). Solo lectura y solo para el rol Administrador:
 // el backend lo exige (403 con mensaje) y el menú solo la muestra a administradores.
@@ -29,12 +30,6 @@ const EMPTY_FILTERS = { date_from: '', date_to: '', actor: '', module: '', actio
 
 const selectClass =
   'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
-
-const formatDate = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-};
 
 const formatValue = (v) => {
   if (v === null || v === undefined || v === '') return '—';
@@ -113,7 +108,7 @@ const Audit = () => {
       Object.entries(applied).forEach(([k, v]) => {
         if (v !== '') params[k] = v;
       });
-      const res = await axios.get(`${API}/audit`, { params });
+      const res = await api.get(`/audit`, { params });
       setData(res.data);
     } catch (error) {
       toast.error(getErrorMessage(error, 'No se pudo cargar la auditoría'));
@@ -124,8 +119,8 @@ const Audit = () => {
 
   useEffect(() => {
     if (!isAdmin) return;
-    axios
-      .get(`${API}/audit/filters`)
+    api
+      .get('/audit/filters')
       .then((res) => setOptions(res.data))
       .catch((error) => toast.error(getErrorMessage(error, 'No se pudieron cargar los filtros')));
   }, [isAdmin]);

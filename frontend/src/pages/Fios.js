@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   Wallet,
@@ -11,32 +10,13 @@ import {
   FileText,
   ChevronRight,
   ArrowLeft,
-  CreditCard,
-  Calendar,
   CheckCircle2,
   Clock,
-  Loader2,
   AlertTriangle,
   CalendarClock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getErrorMessage } from '@/lib/utils';
@@ -44,7 +24,9 @@ import { notifyDataChanged } from '@/lib/events';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import ExportMenu from '@/components/ExportMenu';
-import { API } from '@/App';
+import { currency as formatCurrency, dateTime as formatDate, shortDate } from '@/lib/format';
+import { API, api } from '@/api/client';
+import PaymentDialog from '@/components/fios/PaymentDialog';
 
 // P2.30: estado de una cuenta / factura (al día · por vencer · vencida).
 const STATUS_STYLE = {
@@ -99,7 +81,7 @@ const Fios = () => {
 
   const fetchPaymentMethods = async () => {
     try {
-      const response = await axios.get(`${API}/payment-methods/active`);
+      const response = await api.get(`/payment-methods/active`);
       setPaymentMethods(response.data);
     } catch (error) {
       console.error('Error fetching payment methods:', error);
@@ -122,7 +104,7 @@ const Fios = () => {
   // P1.15: la cuenta es por tipo + número de documento ({ number, type }).
   const fetchClientDetail = async (account) => {
     try {
-      const response = await axios.get(`${API}/fios/${encodeURIComponent(account.number)}`, {
+      const response = await api.get(`/fios/${encodeURIComponent(account.number)}`, {
         params: account.type ? { document_type: account.type } : {},
       });
       setClientDetail(response.data);
@@ -165,7 +147,7 @@ const Fios = () => {
 
     setIsSubmitting(true);
     try {
-      const response = await axios.post(`${API}/fios/${selectedInvoice.invoice_number}/payment`, {
+      const response = await api.post(`/fios/${selectedInvoice.invoice_number}/payment`, {
         amount: parseFloat(paymentForm.amount),
         payment_method: paymentForm.payment_method,
         notes: paymentForm.notes || null
@@ -180,39 +162,14 @@ const Fios = () => {
         fetchClientDetail(selectedClient);
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al registrar el abono');
+      toast.error(getErrorMessage(error, 'Error al registrar el abono'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'N/A';
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch {
-      return dateStr;
-    }
-  };
-
   const filteredAccounts = accounts;
   const aging = list.aging || null;
-  const shortDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('es-CO') : '—');
 
   // Totales de TODA la cartera, calculados en el servidor (no solo la página visible).
   const s = list.summary || {};
@@ -436,103 +393,9 @@ const Fios = () => {
         )}
 
         {/* Payment Dialog for Detail View */}
-        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-          <DialogContent data-testid="payment-dialog-detail">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                Registrar Abono
-              </DialogTitle>
-            </DialogHeader>
-            {selectedInvoice && (
-              <form onSubmit={handleSubmitPayment} className="space-y-4">
-                <div className="p-4 bg-muted/30 rounded-lg space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Factura:</span>
-                    <span className="font-mono">{selectedInvoice.invoice_number}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Factura:</span>
-                    <span className="font-mono">{formatCurrency(selectedInvoice.total)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Ya Abonado:</span>
-                    <span className="font-mono text-green-400">{formatCurrency(selectedInvoice.amount_paid)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold border-t border-border pt-2">
-                    <span>Saldo Pendiente:</span>
-                    <span className="font-mono text-red-400">{formatCurrency(selectedInvoice.balance)}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="amount-detail">Monto a Abonar *</Label>
-                  <Input
-                    id="amount-detail"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={selectedInvoice.balance}
-                    value={paymentForm.amount}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                    placeholder="0.00"
-                    data-testid="input-payment-amount-detail"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="payment_method-detail">Forma de Pago *</Label>
-                  <Select
-                    value={paymentForm.payment_method}
-                    onValueChange={(value) => setPaymentForm({ ...paymentForm, payment_method: value })}
-                  >
-                    <SelectTrigger data-testid="select-payment-method-detail">
-                      <SelectValue placeholder="Seleccione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentMethods.map((pm) => (
-                        <SelectItem key={pm.name} value={pm.name}>
-                          {pm.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="notes-detail">Notas (opcional)</Label>
-                  <Textarea
-                    id="notes-detail"
-                    value={paymentForm.notes}
-                    onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                    placeholder="Observaciones del pago..."
-                    rows={2}
-                    data-testid="input-payment-notes-detail"
-                  />
-                </div>
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowPaymentDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting} data-testid="submit-payment-btn-detail">
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Registrando...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Registrar Abono
-                      </>
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            )}
-          </DialogContent>
-        </Dialog>
+        <PaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} invoice={selectedInvoice}
+                       form={paymentForm} setForm={setPaymentForm} paymentMethods={paymentMethods}
+                       isSubmitting={isSubmitting} onSubmit={handleSubmitPayment} suffix="-detail" />
       </div>
     );
   }
@@ -751,103 +614,9 @@ const Fios = () => {
       <Pagination {...list.paginationProps} noun="cuenta(s)" testId="fios-pagination" />
 
       {/* Payment Dialog */}
-      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
-        <DialogContent data-testid="payment-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Registrar Abono
-            </DialogTitle>
-          </DialogHeader>
-          {selectedInvoice && (
-            <form onSubmit={handleSubmitPayment} className="space-y-4">
-              <div className="p-4 bg-muted/30 rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Factura:</span>
-                  <span className="font-mono">{selectedInvoice.invoice_number}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Factura:</span>
-                  <span className="font-mono">{formatCurrency(selectedInvoice.total)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Ya Abonado:</span>
-                  <span className="font-mono text-green-400">{formatCurrency(selectedInvoice.amount_paid)}</span>
-                </div>
-                <div className="flex justify-between font-bold border-t border-border pt-2">
-                  <span>Saldo Pendiente:</span>
-                  <span className="font-mono text-red-400">{formatCurrency(selectedInvoice.balance)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="amount">Monto a Abonar *</Label>
-                <Input
-                  id="amount"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  max={selectedInvoice.balance}
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                  placeholder="0.00"
-                  data-testid="input-payment-amount"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="payment_method">Forma de Pago *</Label>
-                <Select
-                  value={paymentForm.payment_method}
-                  onValueChange={(value) => setPaymentForm({ ...paymentForm, payment_method: value })}
-                >
-                  <SelectTrigger data-testid="select-payment-method">
-                    <SelectValue placeholder="Seleccione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods.map((pm) => (
-                      <SelectItem key={pm.name} value={pm.name}>
-                        {pm.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas (opcional)</Label>
-                <Textarea
-                  id="notes"
-                  value={paymentForm.notes}
-                  onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })}
-                  placeholder="Observaciones del pago..."
-                  rows={2}
-                  data-testid="input-payment-notes"
-                />
-              </div>
-
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setShowPaymentDialog(false)}>
-                  Cancelar
-                </Button>
-                <Button type="submit" disabled={isSubmitting} data-testid="submit-payment-btn">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Registrando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Registrar Abono
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PaymentDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog} invoice={selectedInvoice}
+                     form={paymentForm} setForm={setPaymentForm} paymentMethods={paymentMethods}
+                     isSubmitting={isSubmitting} onSubmit={handleSubmitPayment} />
     </div>
   );
 };

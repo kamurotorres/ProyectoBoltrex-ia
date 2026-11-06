@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
 import { toast } from 'sonner';
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Minus, RefreshCw } from 'lucide-react';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { BarList, ChartCard, ColumnChart, DataTable, money } from '@/components/charts/Charts';
+import { api } from '@/api/client';
 
 // Dashboard (backlog P2.29). Un vendedor ve solo sus ventas; el Administrador ve toda la
 // tienda y puede filtrar por vendedor. Las cifras usan las mismas reglas que Reportes
@@ -92,7 +91,7 @@ const Dashboard = () => {
     try {
       const params = { start_date: range.start, end_date: range.end, tz_offset_minutes: new Date().getTimezoneOffset() };
       if (seller) params.seller = seller;
-      const res = await axios.get(`${API}/dashboard/summary`, { params });
+      const res = await api.get(`/dashboard/summary`, { params });
       setData(res.data);
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al cargar el dashboard'));

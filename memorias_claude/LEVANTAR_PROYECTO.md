@@ -231,7 +231,7 @@ Abre http://localhost:3000. `REACT_APP_BACKEND_URL` es **obligatoria** en este m
 
 Nunca contra la BD real `boltrex`: cada batería usa una BD temporal `boltrex_<x>test` y un backend de prueba en el puerto **8001**.
 
-**Forma corta (P2.24, recomendada):** `scripts/run_all_tests.sh` — prepara las BD, arranca/apaga el backend de prueba, corre las 23 baterías de la fase principal + `session` y `login_throttle` (con sus tiempos cortos) + `frontend_access`, muestra un resumen ✅/❌, guarda logs en `.test-logs/` y borra las BD `boltrex_ci*test`. Con argumentos corre solo esas baterías (`scripts/run_all_tests.sh credit cash`). Es lo mismo que corre el CI de GitHub Actions (`.github/workflows/ci.yml`). Funciona con el bash 3.2 de macOS.
+**Forma corta (P2.24, recomendada):** `scripts/run_all_tests.sh` — prepara las BD, arranca/apaga el backend de prueba, corre las baterías de la fase principal + `session` y `login_throttle` (con sus tiempos cortos) + 4 del frontend sin navegador (`frontend_access`, `frontend_syntax`, `frontend_format`, `frontend_lint`), muestra un resumen ✅/❌, guarda logs en `.test-logs/` y borra las BD `boltrex_ci*test`. Con argumentos corre solo esas baterías (`scripts/run_all_tests.sh credit cash`). Es lo mismo que corre el CI de GitHub Actions (`.github/workflows/ci.yml`). Funciona con el bash 3.2 de macOS.
 
 Forma manual (una batería a la vez):
 

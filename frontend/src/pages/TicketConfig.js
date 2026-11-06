@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   Settings,
@@ -31,8 +30,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { API } from '@/App';
 import { usePermissions } from '@/hooks/usePermissions';
+import { api } from '@/api/client';
 
 const TicketConfig = () => {
   const { canUpdate } = usePermissions();
@@ -55,7 +54,7 @@ const TicketConfig = () => {
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API}/ticket-config`);
+      const response = await api.get(`/ticket-config`);
       setConfig(response.data);
     } catch (error) {
       toast.error('Error al cargar la configuración');
@@ -80,7 +79,7 @@ const TicketConfig = () => {
 
     try {
       setSaving(true);
-      await axios.put(`${API}/ticket-config`, config);
+      await api.put(`/ticket-config`, config);
       toast.success('Configuración guardada exitosamente');
     } catch (error) {
       toast.error('Error al guardar la configuración');

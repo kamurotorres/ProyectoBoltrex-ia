@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { money as fmtMoney } from '@/lib/format';
 
 // Gráficas del Dashboard (backlog P2.29) en SVG propio, sin librerías.
 // Reglas de la guía de visualización:
@@ -10,7 +11,6 @@ import React, { useMemo, useRef, useState } from 'react';
 
 export const VIZ_STYLE = { '--viz-series': '#3987e5', '--viz-series-hover': '#5a9dec' };
 
-const fmtMoney = (v) => '$' + Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 });
 export const money = fmtMoney;
 
 // Escala "bonita" para el eje Y (0, 25k, 50k…)

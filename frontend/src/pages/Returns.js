@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +26,7 @@ import { notifyDataChanged } from '@/lib/events';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API, api } from '@/api/client';
 
 const Returns = () => {
   const { canCreate } = usePermissions();
@@ -50,7 +49,7 @@ const Returns = () => {
       try {
         const params = { exclude_status: 'returned', page_size: 10 };
         if (searchInvoice.trim()) params.search = searchInvoice.trim();
-        const res = await axios.get(`${API}/invoices`, { params });
+        const res = await api.get(`/invoices`, { params });
         setInvoices(res.data.items || []);
       } catch (error) {
         toast.error(getErrorMessage(error, 'Error al buscar facturas'));
@@ -72,7 +71,7 @@ const Returns = () => {
     // Se consultan en el servidor: la lista de abajo está paginada (P1.18).
     let previous = [];
     try {
-      const res = await axios.get(`${API}/returns`, { params: { invoice_number: invoice.invoice_number, page_size: 200 } });
+      const res = await api.get(`/returns`, { params: { invoice_number: invoice.invoice_number, page_size: 200 } });
       previous = res.data.items || [];
     } catch (error) {
       toast.error(getErrorMessage(error, 'No se pudieron consultar las devoluciones previas de la factura'));
@@ -120,7 +119,7 @@ const Returns = () => {
 
     setIsSubmitting(true);
     try {
-      const res = await axios.post(`${API}/returns`, {
+      const res = await api.post(`/returns`, {
         invoice_number: selectedInvoice.invoice_number,
         // Precio e importes los calcula el servidor a partir de la factura.
         items: itemsToReturn.map(item => ({

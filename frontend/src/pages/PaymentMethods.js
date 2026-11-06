@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'sonner';
 import {
   CreditCard,
   Plus,
   Pencil,
   Trash2,
-  Check,
-  X,
   ToggleLeft,
   ToggleRight,
   Loader2
@@ -38,7 +35,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { Search } from 'lucide-react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
-import { API } from '@/App';
+import { getErrorMessage } from '@/lib/utils';
+import { API, api } from '@/api/client';
 
 const PaymentMethods = () => {
   // P1.18: paginadas y buscadas en el servidor (paginated=true; POS y Fios usan /payment-methods/active).
@@ -101,16 +99,16 @@ const PaymentMethods = () => {
     setIsSubmitting(true);
     try {
       if (editingMethod) {
-        await axios.put(`${API}/payment-methods/${editingMethod.name}`, formData);
+        await api.put(`/payment-methods/${editingMethod.name}`, formData);
         toast.success('Forma de pago actualizada');
       } else {
-        await axios.post(`${API}/payment-methods`, formData);
+        await api.post(`/payment-methods`, formData);
         toast.success('Forma de pago creada');
       }
       setShowDialog(false);
       fetchPaymentMethods();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar');
+      toast.error(getErrorMessage(error, 'Error al guardar'));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,19 +116,19 @@ const PaymentMethods = () => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`${API}/payment-methods/${methodToDelete.name}`);
+      await api.delete(`/payment-methods/${methodToDelete.name}`);
       toast.success('Forma de pago eliminada');
       setShowDeleteDialog(false);
       setMethodToDelete(null);
       fetchPaymentMethods();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar');
+      toast.error(getErrorMessage(error, 'Error al eliminar'));
     }
   };
 
   const handleToggleStatus = async (method) => {
     try {
-      await axios.put(`${API}/payment-methods/${method.name}`, {
+      await api.put(`/payment-methods/${method.name}`, {
         is_active: !method.is_active
       });
       toast.success(`Forma de pago ${!method.is_active ? 'activada' : 'desactivada'}`);

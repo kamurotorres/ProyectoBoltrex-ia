@@ -1,18 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Package, CreditCard, CalendarClock, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DATA_CHANGED } from '@/lib/events';
-import { API } from '@/App';
+import { money } from '@/lib/format';
+import { api } from '@/api/client';
 
 // P2.34: campana de alertas (stock bajo/agotado, créditos vencidos y por vencer).
 // Las alertas se calculan en el servidor según los permisos del usuario; «Marcar como visto»
 // apaga el número rojo hasta que aparezca una alerta nueva o empeore una existente.
 const REFRESH_MS = 2 * 60 * 1000;
-const money = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 const todayKey = (email) => {
   const d = new Date();
   return `boltrex.alerts.summary.${email}.${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
@@ -44,7 +43,7 @@ const AlertsBell = ({ user }) => {
 
   const load = useCallback(async () => {
     try {
-      const r = await axios.get(`${API}/alerts`);
+      const r = await api.get(`/alerts`);
       setData(r.data);
       return r.data;
     } catch {
@@ -90,7 +89,7 @@ const AlertsBell = ({ user }) => {
   const markSeen = async () => {
     setMarking(true);
     try {
-      await axios.post(`${API}/alerts/seen`);
+      await api.post(`/alerts/seen`);
       await load();
     } catch {
       toast.error('No se pudieron marcar las alertas como vistas. Intenta de nuevo.');

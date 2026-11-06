@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +18,8 @@ import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API, api } from '@/api/client';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 // P2.32: catálogo de motivos de los ajustes de inventario (como Categorías).
 export const ADJUSTMENT_KINDS = [
@@ -31,6 +31,7 @@ const EMPTY = { name: '', description: '', applies_to: ['salida'], requires_note
 
 const AdjustmentReasons = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   const list = usePaginatedList(`${API}/adjustment-reasons`, { params: { paginated: true }, errorMessage: 'Error al cargar los motivos' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -65,10 +66,10 @@ const AdjustmentReasons = () => {
     setIsSubmitting(true);
     try {
       if (current) {
-        await axios.put(`${API}/adjustment-reasons/${encodeURIComponent(current.name)}`, formData);
+        await api.put(`/adjustment-reasons/${encodeURIComponent(current.name)}`, formData);
         toast.success('Motivo actualizado');
       } else {
-        await axios.post(`${API}/adjustment-reasons`, formData);
+        await api.post(`/adjustment-reasons`, formData);
         toast.success('Motivo creado');
       }
       setDialogOpen(false);
@@ -81,9 +82,9 @@ const AdjustmentReasons = () => {
   };
 
   const handleDelete = async (reason) => {
-    if (!window.confirm(`¿Eliminar el motivo "${reason.name}"?`)) return;
+    if (!(await confirm(`¿Eliminar el motivo "${reason.name}"?`, { confirmLabel: 'Eliminar', destructive: true }))) return;
     try {
-      await axios.delete(`${API}/adjustment-reasons/${encodeURIComponent(reason.name)}`);
+      await api.delete(`/adjustment-reasons/${encodeURIComponent(reason.name)}`);
       toast.success('Motivo eliminado');
       list.reload();
     } catch (error) {

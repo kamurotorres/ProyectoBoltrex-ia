@@ -1,6 +1,5 @@
 import React, { useState, useContext } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { AuthContext } from '@/App';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
 import {
@@ -34,6 +33,8 @@ import { Button } from '@/components/ui/button';
 import { allowedSections, findSection, isReadOnly } from '@/lib/access';
 import BoltrexLogo from '@/components/BoltrexLogo';
 import AlertsBell from '@/components/AlertsBell';
+import { AuthContext } from '@/auth/AuthProvider';
+import { useConfirm } from '@/components/ConfirmDialog';
 
 const ICONS = {
   LayoutDashboard, Package, FolderOpen, Users, Truck, ShoppingBag, RotateCcw, ShoppingCart, Receipt,
@@ -43,6 +44,7 @@ const ICONS = {
 
 const Layout = () => {
   const { user, logout, logoutAll } = useContext(AuthContext);
+  const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -56,7 +58,7 @@ const Layout = () => {
 
   // Cierra la sesión en todos los equipos (útil si se perdió un equipo o se usó uno ajeno).
   const handleLogoutAll = async () => {
-    if (!window.confirm('¿Cerrar tu sesión en TODOS los equipos, incluido este? Tendrás que volver a iniciar sesión.')) return;
+    if (!(await confirm('¿Cerrar tu sesión en TODOS los equipos, incluido este? Tendrás que volver a iniciar sesión.', { confirmLabel: 'Cerrar todas las sesiones', destructive: true }))) return;
     setSidebarOpen(false);
     try {
       await logoutAll();

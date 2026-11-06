@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
-import { API } from '@/App';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,9 +15,9 @@ import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, SlidersHorizo
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { AdjustmentDialog, AdjustmentsTab, signedMoney } from '@/components/inventory/Adjustments';
-import { toast } from 'sonner';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
+import { API } from '@/api/client';
 
 const Inventory = () => {
   // P1.18: stock y movimientos paginados en el servidor; los totales los calcula el servidor
