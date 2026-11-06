@@ -12,19 +12,17 @@ from rbac import (
     UserRoleAssignment, PermissionCheck, Actions,
     DEFAULT_MODULES, DEFAULT_ROLES
 )
-from passlib.context import CryptContext
 from core.dates import now_utc, as_datetime
 from core.permissions import get_user_permissions, require_permission, require_any_permission
 from core import user_protection as guard
 from models.auth import User
 from core.login_throttle import unlock_email
-from core.passwords import password_problem
+from core.passwords import hash_password, password_problem
 from core.sessions import revoke_user_sessions
 from core.security import current_session_id
 from core import audit
 from core.pagination import page_params, paginate, paginate_pipeline, search_filter, combine
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ==================== PERMISSION HELPERS ====================
 
@@ -278,7 +276,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
         problem = password_problem(user.password)
         if problem:
             raise HTTPException(status_code=400, detail=problem)
-        hashed_password = pwd_context.hash(user.password)
+        hashed_password = hash_password(user.password)
         user_dict = user.model_dump(exclude={"password"})
         user_dict["hashed_password"] = hashed_password
         user_dict["roles"] = []
@@ -327,7 +325,7 @@ def create_rbac_router(db: AsyncIOMotorDatabase) -> APIRouter:
             problem = password_problem(update_data["password"])
             if problem:
                 raise HTTPException(status_code=400, detail=problem)
-            update_data["hashed_password"] = pwd_context.hash(update_data.pop("password"))
+            update_data["hashed_password"] = hash_password(update_data.pop("password"))
 
         if not update_data:
             raise HTTPException(status_code=400, detail="No hay datos para actualizar")

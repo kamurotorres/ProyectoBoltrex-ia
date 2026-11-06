@@ -1,22 +1,21 @@
 from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from passlib.context import CryptContext
-from jose import JWTError, ExpiredSignatureError, jwt
+import jwt   # PyJWT (P2.26: reemplaza a python-jose)
+from jwt import ExpiredSignatureError, InvalidTokenError as JWTError
 from datetime import datetime, timezone, timedelta
 from core.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from core.database import get_db
-from core.passwords import PASSWORD_CHANGE_REQUIRED
+from core.passwords import PASSWORD_CHANGE_REQUIRED, check_password, hash_password
 from models.auth import User
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return check_password(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return hash_password(password)
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
@@ -134,7 +133,7 @@ async def flag_default_passwords(database: AsyncIOMotorDatabase) -> int:
             if not hashed:
                 continue
             # bcrypt es lento: se ejecuta fuera del event loop.
-            if await asyncio.to_thread(pwd_context.verify, LEGACY_DEFAULT_PASSWORD, hashed):
+            if await asyncio.to_thread(check_password, LEGACY_DEFAULT_PASSWORD, hashed):
                 await database.users_extended.update_one(
                     {"email": user["email"]}, {"$set": {"must_change_password": True}}
                 )

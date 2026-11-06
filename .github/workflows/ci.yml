@@ -56,17 +56,18 @@ jobs:
         with:
           python-version: "3.11"          # la misma de backend/Dockerfile
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Instalar dependencias del backend
         run: |
           python -m venv backend/.venv
           backend/.venv/bin/pip install --upgrade pip
-          backend/.venv/bin/pip install -r backend/requirements.txt
+          backend/.venv/bin/pip install -r backend/requirements-dev.txt   # producción + pruebas/lint
 
       - name: Lint (solo errores reales)
         run: |
-          backend/.venv/bin/pip install ruff==0.6.9
           # E9 sintaxis · F63/F7 errores de lógica de Python · F82 nombres sin definir
           backend/.venv/bin/ruff check --select E9,F63,F7,F82 --output-format github backend scripts tests
           # Que el backend arranque sus imports (detecta módulos o funciones que no existen)

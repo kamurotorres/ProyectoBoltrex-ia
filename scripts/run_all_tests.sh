@@ -98,7 +98,9 @@ if [[ $SPECIAL -eq 1 ]]; then
   stop_backend
 
   echo "== Bloqueo de login (tiempos cortos)"
-  LT=(LOGIN_LOCK_MINUTES=0.05 LOGIN_WINDOW_MINUTES=0.1)
+  # Bloqueo de 6 s / ventana de 12 s: con 3 s la prueba de 20 intentos simultáneos quedaba justa en
+  # máquinas lentas (el CI) y fallaba de forma intermitente.
+  LT=(LOGIN_LOCK_MINUTES=0.1 LOGIN_WINDOW_MINUTES=0.2)
   start_backend boltrex_ciltest "${LT[@]}"
   run_battery login_throttle boltrex_ciltest "${LT[@]}"
   stop_backend

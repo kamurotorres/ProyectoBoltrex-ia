@@ -129,11 +129,11 @@ check("editar sin contraseña sigue funcionando", r.status_code == 200, r.text)
 sys.path.insert(0, str(ROOT / "backend"))
 import asyncio  # noqa: E402
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
-from core.security import flag_default_passwords, pwd_context  # noqa: E402
+from core.security import flag_default_passwords, get_password_hash  # noqa: E402
 
 legacy = f"legacy_{uuid.uuid4().hex[:8]}@example.com"
 mongo.users_extended.insert_one({"email": legacy, "first_name": "L", "last_name": "G", "is_active": True,
-                                 "roles": ["Administrador"], "hashed_password": pwd_context.hash("admin123"),
+                                 "roles": ["Administrador"], "hashed_password": get_password_hash("admin123"),
                                  "created_at": "2026-01-01T00:00:00+00:00"})
 
 
