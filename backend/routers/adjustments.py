@@ -5,35 +5,30 @@ ajuste = crear; por defecto solo el Administrador lo tiene). Un ajuste no se edi
 """
 import csv
 import io
-from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from datetime import timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 
 from core import audit
-from core.adjustments import ADJUSTMENT_COUNTER, KINDS, MAX_ITEMS
-from core.counters import ensure_counter, next_number
+from core.adjustments import KINDS
 from core.database import db
 from core.dates import as_datetime, now_utc
 from core.pagination import combine, page_params, paginate, search_filter
 from core.permissions import require_any_permission, require_permission
-from core.sales import created_at_range
-from core.transactions import run_in_transaction
 from models.auth import User
+
+from models.adjustments import ReasonIn, AdjustmentIn
+
+from services.adjustments import adjustments_query, adjustments_totals
+
+from services import adjustments as adjustments_service
 
 router = APIRouter(tags=["Ajustes de inventario"])
 
 
 # ==================================================================== MOTIVOS (catálogo)
-
-class ReasonIn(BaseModel):
-    name: str
-    description: Optional[str] = None
-    applies_to: List[str] = Field(default_factory=lambda: ["entrada", "salida", "conteo"])
-    requires_note: bool = False
-    is_active: bool = True
 
 
 def _clean_reason(body: ReasonIn) -> dict:
@@ -110,151 +105,10 @@ async def delete_reason(name: str, current_user: User = Depends(require_permissi
 
 # ==================================================================== AJUSTES
 
-class AdjustmentItemIn(BaseModel):
-    barcode: str
-    quantity: Optional[int] = None        # entrada / salida: unidades (> 0)
-    counted: Optional[int] = None         # conteo: unidades contadas (≥ 0)
-    expected_stock: Optional[int] = None  # conteo: stock que mostraba el sistema al contar
-
-
-class AdjustmentIn(BaseModel):
-    kind: str
-    reason: str
-    notes: Optional[str] = None
-    items: List[AdjustmentItemIn]
-
-
-def _money(v: float) -> str:
-    return ("−" if v < 0 else "") + "$" + f"{abs(v):,.0f}".replace(",", ".")
-
-
-async def _validate(body: AdjustmentIn) -> dict:
-    if body.kind not in KINDS:
-        raise HTTPException(status_code=400, detail="Tipo de ajuste inválido: usa entrada, salida o conteo.")
-    reason = await db.adjustment_reasons.find_one({"name": body.reason}, {"_id": 0})
-    if not reason:
-        raise HTTPException(status_code=400, detail=f"El motivo '{body.reason}' no existe. Elige uno de la lista.")
-    if not reason.get("is_active", True):
-        raise HTTPException(status_code=400, detail=f"El motivo '{body.reason}' está desactivado. Elige otro o actívalo en Motivos de ajuste.")
-    if body.kind not in reason.get("applies_to", []):
-        raise HTTPException(status_code=400, detail=f"El motivo '{body.reason}' no aplica a «{KINDS[body.kind]}». "
-                                                    f"Elige otro o cámbialo en Motivos de ajuste.")
-    if reason.get("requires_note") and not (body.notes or "").strip():
-        raise HTTPException(status_code=400, detail=f"El motivo '{body.reason}' exige una observación: explica qué pasó.")
-    if not body.items:
-        raise HTTPException(status_code=400, detail="Agrega al menos un producto al ajuste.")
-    if len(body.items) > MAX_ITEMS:
-        raise HTTPException(status_code=400, detail=f"Un ajuste admite máximo {MAX_ITEMS} productos: divídelo en varios.")
-    seen = set()
-    for it in body.items:
-        if it.barcode in seen:
-            raise HTTPException(status_code=400, detail=f"El producto {it.barcode} está repetido en el ajuste: déjalo una sola vez.")
-        seen.add(it.barcode)
-        if body.kind == "conteo":
-            if it.counted is None or it.counted < 0:
-                raise HTTPException(status_code=400, detail=f"Cantidad contada inválida para {it.barcode}: debe ser 0 o más.")
-            if it.expected_stock is None:
-                raise HTTPException(status_code=400, detail=f"Falta el stock que tenía el sistema al contar {it.barcode}. Recarga e intenta de nuevo.")
-        elif it.quantity is None or it.quantity <= 0:
-            raise HTTPException(status_code=400, detail=f"Cantidad inválida para {it.barcode}: debe ser mayor a 0.")
-    return reason
-
 
 @router.post("/inventory/adjustments")
 async def create_adjustment(body: AdjustmentIn, current_user: User = Depends(require_permission("inventory", "create"))):
-    await _validate(body)
-    await ensure_counter(ADJUSTMENT_COUNTER)
-    notes = (body.notes or "").strip() or None
-
-    async def _work(session):
-        now = now_utc()
-        number = await next_number(ADJUSTMENT_COUNTER, session=session)
-        items = []
-        for it in body.items:
-            product = await db.products.find_one({"barcode": it.barcode}, {"_id": 0, "barcode": 1, "name": 1, "stock": 1, "purchase_price": 1},
-                                                 session=session)
-            if not product:
-                raise HTTPException(status_code=400, detail=f"Producto con código {it.barcode} no encontrado.")
-            stock = int(product.get("stock") or 0)
-            name = product["name"]
-            if body.kind == "entrada":
-                delta = it.quantity
-                await db.products.update_one({"barcode": it.barcode}, {"$inc": {"stock": delta}}, session=session)
-            elif body.kind == "salida":
-                delta = -it.quantity
-                res = await db.products.update_one({"barcode": it.barcode, "stock": {"$gte": it.quantity}},
-                                                   {"$inc": {"stock": delta}}, session=session)
-                if res.modified_count == 0:
-                    raise HTTPException(status_code=400, detail=f"Stock insuficiente de {name}: hay {stock} y quieres sacar {it.quantity}.")
-            else:
-                if stock != it.expected_stock:
-                    raise HTTPException(status_code=409, detail=f"El stock de {name} cambió mientras contabas (era {it.expected_stock}, "
-                                                                f"ahora es {stock}, quizás por una venta): vuelve a contarlo.")
-                delta = it.counted - stock
-                if delta:
-                    res = await db.products.update_one({"barcode": it.barcode, "stock": stock}, {"$set": {"stock": it.counted}}, session=session)
-                    if res.modified_count == 0:
-                        raise HTTPException(status_code=409, detail=f"El stock de {name} cambió mientras contabas: vuelve a contarlo.")
-            unit_cost = float(product.get("purchase_price") or 0)
-            item = {"barcode": it.barcode, "product_name": name, "stock_before": stock, "quantity": delta,
-                    "stock_after": stock + delta, "unit_cost": unit_cost, "value": round(delta * unit_cost, 2)}
-            if body.kind == "conteo":
-                item["counted"] = it.counted
-            items.append(item)
-            if delta:
-                await db.inventory_movements.insert_one({
-                    "barcode": it.barcode, "product_name": name, "movement_type": "adjustment", "quantity": delta,
-                    "reference": number, "reason": body.reason, "adjustment_kind": body.kind,
-                    "created_by": current_user.email, "created_at": now,
-                }, session=session)
-        doc = {
-            "adjustment_number": number, "kind": body.kind, "kind_label": KINDS[body.kind], "reason": body.reason, "notes": notes,
-            "items": items, "products_count": len(items),
-            "units_in": sum(i["quantity"] for i in items if i["quantity"] > 0),
-            "units_out": -sum(i["quantity"] for i in items if i["quantity"] < 0),
-            "gain_value": round(sum(i["value"] for i in items if i["value"] > 0), 2),
-            "loss_value": round(-sum(i["value"] for i in items if i["value"] < 0), 2),
-            "total_value": round(sum(i["value"] for i in items), 2),
-            "created_by": current_user.email, "created_by_name": (current_user.full_name or "").strip() or current_user.email,
-            "created_at": now,
-        }
-        await db.inventory_adjustments.insert_one(dict(doc), session=session)
-        detail = ", ".join(f"{i['product_name']} {i['quantity']:+d}" for i in items[:5]) + ("…" if len(items) > 5 else "")
-        await audit.record("inventory", "create", entity_id=number, entity_name=f"{KINDS[body.kind]} · {body.reason}",
-                           summary=f"Ajuste {number} ({KINDS[body.kind]}, {body.reason}): {detail or 'sin diferencias'} · "
-                                   f"valor {_money(doc['total_value'])}", after=doc, session=session)
-        return doc
-
-    return await run_in_transaction(_work)
-
-
-def _adjustments_query(kind, reason, start_date, end_date, tz_offset_minutes, search) -> dict:
-    if kind and kind not in KINDS:
-        raise HTTPException(status_code=400, detail="Tipo de ajuste inválido: usa entrada, salida o conteo.")
-    rng = created_at_range(start_date, end_date, tz_offset_minutes)
-    return combine({"kind": kind} if kind else None, {"reason": reason} if reason else None,
-                   {"created_at": rng} if rng else None,
-                   search_filter(search, ["adjustment_number", "notes", "created_by", "items.product_name", "items.barcode"]))
-
-
-async def _totals(query: dict) -> dict:
-    rows = await db.inventory_adjustments.aggregate([
-        {"$match": query},
-        {"$group": {"_id": None, "loss": {"$sum": "$loss_value"}, "gain": {"$sum": "$gain_value"}, "n": {"$sum": 1},
-                    "out": {"$sum": "$units_out"}, "in": {"$sum": "$units_in"}}},
-    ]).to_list(1)
-    r = rows[0] if rows else {}
-    return {"adjustments": r.get("n", 0), "loss_value": round(r.get("loss", 0) or 0, 2), "gain_value": round(r.get("gain", 0) or 0, 2),
-            "net_value": round((r.get("gain", 0) or 0) - (r.get("loss", 0) or 0), 2),
-            "units_out": r.get("out", 0) or 0, "units_in": r.get("in", 0) or 0}
-
-
-async def month_adjustments_summary(tz_offset_minutes: int = 0) -> dict:
-    """Pérdidas y sobrantes por ajustes del mes local en curso (tarjeta de Inventario)."""
-    offset = timedelta(minutes=tz_offset_minutes or 0)
-    local = now_utc() - offset
-    start = datetime(local.year, local.month, 1, tzinfo=timezone.utc) + offset
-    return {**await _totals({"created_at": {"$gte": start}}), "month": local.strftime("%Y-%m")}
+    return await adjustments_service.create_adjustment(body=body, current_user=current_user)
 
 
 @router.get("/inventory/adjustments")
@@ -262,10 +116,10 @@ async def list_adjustments(kind: Optional[str] = None, reason: Optional[str] = N
                            end_date: Optional[str] = None, tz_offset_minutes: int = 0, search: Optional[str] = None,
                            pg: dict = Depends(page_params), current_user: User = Depends(require_permission("inventory", "read"))):
     """Ajustes paginados, más recientes primero, con totales del filtro (pérdidas / sobrantes al costo)."""
-    query = _adjustments_query(kind, reason, start_date, end_date, tz_offset_minutes, search)
+    query = adjustments_query(kind, reason, start_date, end_date, tz_offset_minutes, search)
     # El listado no trae los productos (pueden ser cientos en un conteo); el detalle sí.
     page = await paginate(db.inventory_adjustments, query, [("created_at", -1)], projection={"_id": 0, "items": 0}, **pg)
-    page["summary"] = await _totals(query)
+    page["summary"] = await adjustments_totals(query)
     return page
 
 
@@ -275,9 +129,9 @@ async def export_adjustments(kind: Optional[str] = None, reason: Optional[str] =
                              format: str = "csv", current_user: User = Depends(require_permission("inventory", "read"))):
     """Export completo del filtro (CSV: una fila por producto ajustado). P2.33: csv · xlsx · pdf."""
     from core.exporting import check_format, period_label
-    query = _adjustments_query(kind, reason, start_date, end_date, tz_offset_minutes, search)
+    query = adjustments_query(kind, reason, start_date, end_date, tz_offset_minutes, search)
     if check_format(format) != "csv":
-        from routers.exports import adjustments_report
+        from services.exports import adjustments_report
         filters = [period_label(start_date, end_date)] + ([f"Tipo: {KINDS[kind]}"] if kind else []) \
             + ([f"Motivo: {reason}"] if reason else []) + ([f"Búsqueda: {search}"] if search else [])
         return await adjustments_report(query, filters, current_user, format, tz_offset_minutes)

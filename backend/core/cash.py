@@ -21,6 +21,7 @@ from core.errors import BusinessError
 
 from core.counters import Counter
 from core.database import db
+from repositories import cash as cash_repo
 from core.dates import now_utc
 
 CASH_METHOD = "Efectivo"
@@ -68,7 +69,7 @@ async def set_settings(require_open_session: bool, actor: str) -> Dict:
 # ---------------------------------------------------------------- sesión del cajero
 
 async def open_session_of(email: str, session=None) -> Optional[dict]:
-    return await db.cash_sessions.find_one({"cashier_email": email, "status": "open"}, {"_id": 0}, session=session)
+    return await cash_repo.open_session_of(email, session=session)
 
 
 async def session_for_money(email: str, action: str, amount: Optional[float] = None, session=None) -> Optional[str]:
@@ -99,15 +100,13 @@ async def add_movement(session_id: Optional[str], kind: str, direction: str, met
         "created_by": actor,
         "created_at": now_utc(),
     }
-    await db.cash_movements.insert_one(dict(doc), session=session)
+    await cash_repo.insert_movement(doc, session=session)
     return doc
 
 
 async def attach_pending_movements(session_id: str, email: str, session=None) -> int:
     """Al abrir la caja: los movimientos registrados sin caja por ese usuario pasan a esta caja."""
-    res = await db.cash_movements.update_many({"session_id": None, "created_by": email},
-                                              {"$set": {"session_id": session_id, "attached_on_open": True}}, session=session)
-    return res.modified_count
+    return await cash_repo.attach_pending(session_id, email, session=session)
 
 
 async def summarize(cash_session: dict, session=None) -> Dict:

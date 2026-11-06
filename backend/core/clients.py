@@ -7,50 +7,14 @@ clientes distintos. Toda búsqueda de un cliente concreto pasa por `resolve_clie
 - sin tipo y varios → error con mensaje: nunca se adivina.
 """
 import logging
-from typing import Optional
 
-from core.errors import BusinessError, NotFoundError
 
 from core.database import db
 
+# Búsqueda del cliente: repositories/clients.py (fase 3). Se reexporta por compatibilidad.
+from repositories.clients import client_label, invoices_of_client_query, resolve_client  # noqa: F401,E402
+
 logger = logging.getLogger("boltrex")
-
-
-def client_label(document_type: Optional[str], document_number: str) -> str:
-    return f"{document_type} {document_number}".strip() if document_type else str(document_number)
-
-
-async def resolve_client(document_number: str, document_type: Optional[str] = None, session=None,
-                         projection: Optional[dict] = None) -> dict:
-    projection = projection if projection is not None else {"_id": 0}
-    document_type = (document_type or "").strip() or None
-    if document_type:
-        client = await db.clients.find_one({"document_type": document_type, "document_number": document_number},
-                                           projection, session=session)
-        if not client:
-            raise NotFoundError(f"No existe un cliente con el documento {client_label(document_type, document_number)}.")
-        return client
-
-    matches = await db.clients.find({"document_number": document_number}, projection, session=session).to_list(10)
-    if not matches:
-        raise NotFoundError(f"No existe un cliente con el documento {document_number}.")
-    if len(matches) > 1:
-        types = ", ".join(sorted({m.get("document_type", "?") for m in matches}))
-        raise BusinessError(f"Hay {len(matches)} clientes con el documento {document_number} ({types}). "
-                   f"Indica el tipo de documento.")
-    return matches[0]
-
-
-def invoices_of_client_query(client: dict) -> dict:
-    """Facturas de un cliente: las que guardan su tipo y, de las antiguas sin tipo, las de su número."""
-    return {
-        "client_document": client["document_number"],
-        "$or": [
-            {"client_document_type": client.get("document_type")},
-            {"client_document_type": {"$exists": False}},
-            {"client_document_type": None},
-        ],
-    }
 
 
 async def backfill_invoice_document_types() -> dict:

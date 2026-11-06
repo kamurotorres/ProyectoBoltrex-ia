@@ -180,7 +180,7 @@ async def aging_summary(seller: Optional[str] = None, settings: Optional[Dict] =
 
 async def client_credit_status(document_number: str, document_type: Optional[str]) -> Dict:
     """Saldo, vencido y cupo de un cliente (para el aviso del POS y la validación del cupo)."""
-    from core.clients import invoices_of_client_query, resolve_client
+    from repositories.clients import invoices_of_client_query, resolve_client
     client = await resolve_client(document_number, document_type)
     settings = await get_settings()
     now = now_utc()
@@ -209,7 +209,7 @@ async def client_credit_status(document_number: str, document_type: Optional[str
 
 async def check_credit_limit(client: dict, new_total: float, session=None) -> None:
     """Rechaza una venta a crédito que supere el cupo del cliente (si tiene cupo)."""
-    from core.clients import invoices_of_client_query
+    from repositories.clients import invoices_of_client_query
     limit = float(client.get("credit_limit") or 0)
     if not limit:
         return

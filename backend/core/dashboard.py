@@ -206,7 +206,7 @@ async def build_dashboard(start_date: Optional[str], end_date: Optional[str], tz
     from core.credit import aging_summary
     aging = await aging_summary(seller)
 
-    from routers.inventory import inventory_summary  # import diferido: evita ciclos
+    from services.inventory import inventory_summary  # import diferido: evita ciclos
     stock = await inventory_summary()
 
     return {

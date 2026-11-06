@@ -5,7 +5,7 @@ from core.database import db
 from core.permissions import require_permission, require_any_permission
 from core.transactions import run_in_transaction
 from core import audit
-from core.clients import resolve_client, invoices_of_client_query, client_label
+from repositories.clients import resolve_client, invoices_of_client_query, client_label
 from core.user_protection import actor_is_admin
 
 CREDIT_ONLY_ADMIN = ("Solo un administrador puede asignar o cambiar el plazo y el cupo de crédito de un cliente "

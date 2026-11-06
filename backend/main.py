@@ -14,7 +14,7 @@ from core.errors import register_error_handlers
 from core.startup import run_startup_tasks
 
 # Import routers
-from routers import auth, products, clients, rbac, invoices, inventory, reports, system, audit as audit_router, cash as cash_router, credit as credit_router, adjustments as adjustments_router, alerts as alerts_router, exports as exports_router
+from routers import auth, products, clients, rbac, tax_rates, payment_methods, sales, returns, fios, inventory, reports, system, audit as audit_router, cash as cash_router, credit as credit_router, adjustments as adjustments_router, alerts as alerts_router, exports as exports_router
 
 # Los avisos de la app (logger "boltrex") salen en la consola / `docker compose logs backend`.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
@@ -49,7 +49,9 @@ app.include_router(exports_router.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(products.router, prefix="/api")
 app.include_router(clients.router, prefix="/api")
-app.include_router(invoices.router, prefix="/api")
+# Mantenimiento fase 3: lo que era routers/invoices.py, por área (mismas rutas, mismo orden).
+for _r in (tax_rates, payment_methods, sales, returns, fios):
+    app.include_router(_r.router, prefix="/api")
 app.include_router(inventory.router, prefix="/api")
 app.include_router(reports.router, prefix="/api")
 app.include_router(system.router, prefix="/api")

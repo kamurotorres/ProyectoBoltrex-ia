@@ -100,6 +100,13 @@ def item(a, code):
     return next((i for i in a["groups"].get("stock", {}).get("items", []) if i["barcode"] == code), None)
 
 
+def low_row(code):
+    """Estado de un producto por el filtro «Bajo stock» de Inventario (no depende de que entre en los 5 de la campana:
+    con datos de otras baterías puede haber más productos bajos)."""
+    rows = requests.get(f"{B}/inventory", headers=A, params={"search": code, "stock": "low"}).json()["items"]
+    return next((p for p in rows if p["barcode"] == code), None)
+
+
 def stock_keys_new(a):
     return a["groups"].get("stock", {}).get("new", 0)
 
@@ -152,11 +159,12 @@ check("si vuelve a bajar (15 < 20) avisa de nuevo aunque se había visto antes",
 
 # --- 4. Cambiar el general y quitar el mínimo propio ---
 requests.put(f"{B}/inventory/settings", headers=A, json={"low_stock_threshold": 16})
-check("general 16 → la Leche (11) entra en bajo stock", item(alerts(A), LECHE) is not None)
+check("general 16 → la Leche (11) entra en bajo stock", (low_row(LECHE) or {}).get("min_stock_effective") == 16
+      and alerts(A)["groups"]["stock"]["count"] >= 2)
 check("…queda en la auditoría", mongo.audit_log.find_one({"module": "inventory", "entity_id": "configuracion"}) is not None)
 r = requests.put(f"{B}/products/{PAN}", headers=A, json={"min_stock": None})
 check("quitar el mínimo propio del Pan → usa el general (16; Pan 15 queda bajo)", r.ok and "min_stock" not in mongo.products.find_one({"barcode": PAN})
-      and (item(alerts(A), PAN) or {}).get("min_stock") == 16, r.text)
+      and (low_row(PAN) or {}).get("min_stock_effective") == 16, r.text)
 r = requests.put(f"{B}/products/{PAN}", headers=A, json={"min_stock": 5})
 check("ponerle mínimo 5 → Pan (15) ya no está bajo", r.ok and item(alerts(A), PAN) is None, r.text)
 requests.put(f"{B}/inventory/settings", headers=A, json={"low_stock_threshold": 10})
