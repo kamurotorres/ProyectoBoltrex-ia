@@ -1,18 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Banknote, Lock, Plus, Printer, Unlock, Eye } from 'lucide-react';
+import { Banknote, Lock, Plus, Unlock, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
-import ExportMenu from '@/components/ExportMenu';
 import { money, shortDateTime as when } from '@/lib/format';
 import { API, api } from '@/api/client';
 import { AuthContext } from '@/auth/AuthProvider';
+import CloseDialog from '@/features/cash/CloseDialog';
+import SummaryTable, { Movements } from '@/features/cash/SessionParts';
+import SessionDetailDialog from '@/features/cash/SessionDetailDialog';
+import MovementDialog from '@/features/cash/MovementDialog';
 
 // Control de caja (backlog P2.31): un turno por cajero con base inicial, movimientos (ventas
 // de contado, abonos, reembolsos por devolución, ingresos y egresos manuales) y cierre con
@@ -20,214 +22,6 @@ import { AuthContext } from '@/auth/AuthProvider';
 
 const DEFAULT_DENOMS = { bills: [100000, 50000, 20000, 10000, 5000, 2000], coins: [1000, 500, 200, 100, 50] };
 
-function SummaryTable({ summary }) {
-  if (!summary) return null;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm" data-testid="cash-summary">
-        <thead className="text-muted-foreground text-xs">
-          <tr>
-            <th className="text-left py-2 px-2 font-medium">Forma de pago</th>
-            <th className="text-right py-2 px-2 font-medium">Base</th>
-            <th className="text-right py-2 px-2 font-medium">Ventas</th>
-            <th className="text-right py-2 px-2 font-medium">Abonos</th>
-            <th className="text-right py-2 px-2 font-medium">Reembolsos</th>
-            <th className="text-right py-2 px-2 font-medium">Ingresos</th>
-            <th className="text-right py-2 px-2 font-medium">Egresos</th>
-            <th className="text-right py-2 px-2 font-medium">Esperado</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border font-mono">
-          {summary.methods.map((m) => (
-            <tr key={m.method} className={m.is_cash ? 'font-semibold' : ''}>
-              <td className="py-2 px-2 font-sans">{m.method}</td>
-              <td className="py-2 px-2 text-right">{m.is_cash ? money(m.opening) : '—'}</td>
-              <td className="py-2 px-2 text-right">{money(m.sales)}</td>
-              <td className="py-2 px-2 text-right">{money(m.fio_payments)}</td>
-              <td className="py-2 px-2 text-right">{m.refunds ? `−${money(m.refunds)}` : money(0)}</td>
-              <td className="py-2 px-2 text-right">{money(m.income)}</td>
-              <td className="py-2 px-2 text-right">{m.expense ? `−${money(m.expense)}` : money(0)}</td>
-              <td className="py-2 px-2 text-right">{money(m.expected)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="text-xs text-muted-foreground mt-2">
-        Efectivo esperado = base + ventas + abonos + ingresos − reembolsos − egresos (solo efectivo).
-      </p>
-    </div>
-  );
-}
-
-function Movements({ movements }) {
-  if (!movements?.length) return <p className="text-sm text-muted-foreground py-4">Sin movimientos todavía.</p>;
-  return (
-    <div className="max-h-80 overflow-auto">
-      <table className="w-full text-xs">
-        <thead className="text-muted-foreground">
-          <tr>
-            <th className="text-left py-1.5 px-2 font-medium">Hora</th>
-            <th className="text-left py-1.5 px-2 font-medium">Tipo</th>
-            <th className="text-left py-1.5 px-2 font-medium">Forma de pago</th>
-            <th className="text-left py-1.5 px-2 font-medium">Referencia / motivo</th>
-            <th className="text-right py-1.5 px-2 font-medium">Monto</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {movements.map((m, i) => (
-            <tr key={i}>
-              <td className="py-1.5 px-2 whitespace-nowrap">{when(m.created_at)}</td>
-              <td className="py-1.5 px-2">{m.kind_label}{m.attached_on_open ? ' (pendiente)' : ''}</td>
-              <td className="py-1.5 px-2">{m.method}</td>
-              <td className="py-1.5 px-2">{m.reference || m.reason || '—'}</td>
-              <td className="py-1.5 px-2 text-right font-mono">{m.direction === 'out' ? '−' : '+'}{money(m.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// Reporte de cierre imprimible en ticket de 80 mm.
-function printReport(s) {
-  const rows = (s.summary?.methods || []).map((m) => `<tr><td>${m.method}</td><td class="r">${money(m.expected)}</td></tr>`).join('');
-  const denoms = Object.entries(s.denominations || {}).sort((a, b) => b[0] - a[0])
-    .map(([d, q]) => `<tr><td>${q} × ${money(d)}</td><td class="r">${money(d * q)}</td></tr>`).join('');
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cierre ${s.session_id}</title>
-  <style>@page{size:80mm auto;margin:4mm}body{font:12px monospace;width:72mm;margin:0}h1{font-size:14px;text-align:center;margin:0 0 6px}
-  table{width:100%;border-collapse:collapse}td{padding:2px 0}.r{text-align:right}hr{border:0;border-top:1px dashed #000;margin:6px 0}</style></head><body>
-  <h1>CIERRE DE CAJA ${s.session_id}</h1>
-  <div>Cajero: ${s.cashier_name || s.cashier_email}</div><div>Apertura: ${when(s.opened_at)}</div><div>Cierre: ${when(s.closed_at)}</div>
-  ${s.forced_close ? `<div>Cerrada por: ${s.closed_by} (forzado)</div>` : ''}<hr>
-  <div><b>Esperado por forma de pago</b></div><table>${rows}</table><hr>
-  <table><tr><td>Base inicial</td><td class="r">${money(s.opening_amount)}</td></tr>
-  <tr><td>Efectivo esperado</td><td class="r">${money(s.summary?.expected_cash)}</td></tr>
-  <tr><td>Efectivo contado</td><td class="r">${money(s.counted_cash)}</td></tr>
-  <tr><td><b>Diferencia</b></td><td class="r"><b>${s.difference > 0 ? '+' : ''}${money(s.difference)}</b></td></tr></table>
-  ${denoms ? `<hr><div><b>Arqueo</b></div><table>${denoms}</table>` : ''}
-  ${s.closing_notes ? `<hr><div>Obs.: ${s.closing_notes}</div>` : ''}
-  <hr><div style="text-align:center">Firma cajero: ____________</div></body></html>`;
-  const w = window.open('', '_blank', 'width=420,height=640');
-  if (!w) {
-    toast.error('El navegador bloqueó la ventana de impresión: permite las ventanas emergentes para Boltrex.');
-    return;
-  }
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  w.print();
-}
-
-function CloseDialog({ open, onOpenChange, cashSession, denoms, forced, onClosed }) {
-  const [mode, setMode] = useState('denominations');
-  const [qty, setQty] = useState({});
-  const [total, setTotal] = useState('');
-  const [notes, setNotes] = useState('');
-  const [reconciled, setReconciled] = useState({});
-  const [saving, setSaving] = useState(false);
-  const expected = cashSession?.summary?.expected_cash || 0;
-  const all = [...denoms.bills, ...denoms.coins];
-  const counted = mode === 'denominations'
-    ? all.reduce((sum, d) => sum + d * (parseInt(qty[d], 10) || 0), 0)
-    : parseFloat(total) || 0;
-  const diff = Math.round((counted - expected) * 100) / 100;
-  const others = (cashSession?.summary?.methods || []).filter((m) => !m.is_cash && m.expected);
-
-  useEffect(() => {
-    if (open) { setQty({}); setTotal(''); setNotes(''); setReconciled({}); setMode('denominations'); }
-  }, [open]);
-
-  const submit = async () => {
-    if (diff !== 0 && !notes.trim()) {
-      toast.error(`Hay ${diff > 0 ? 'un sobrante' : 'un faltante'} de ${money(Math.abs(diff))}: escribe una observación para cerrar.`);
-      return;
-    }
-    if (forced && !notes.trim()) {
-      toast.error('Para cerrar la caja de otro cajero escribe el motivo en observaciones.');
-      return;
-    }
-    setSaving(true);
-    try {
-      const body = { notes, reconciled };
-      if (mode === 'denominations') {
-        body.denominations = Object.fromEntries(all.filter((d) => parseInt(qty[d], 10) > 0).map((d) => [String(d), parseInt(qty[d], 10)]));
-        if (!Object.keys(body.denominations).length) body.counted_cash = 0;
-      } else {
-        body.counted_cash = counted;
-      }
-      const res = await api.post(`/cash/sessions/${cashSession.session_id}/close`, body);
-      toast.success(`Caja ${cashSession.session_id} cerrada${res.data.difference ? ` con ${res.data.difference > 0 ? 'sobrante' : 'faltante'} de ${money(Math.abs(res.data.difference))}` : ' cuadrada'}.`);
-      onClosed(res.data);
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'No se pudo cerrar la caja'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="close-cash-dialog">
-        <DialogHeader>
-          <DialogTitle>Cerrar caja {cashSession?.session_id}{forced ? ` de ${cashSession?.cashier_email}` : ''}</DialogTitle>
-          <DialogDescription>Cuenta el efectivo y compáralo con lo que debería haber.</DialogDescription>
-        </DialogHeader>
-        <div className="flex gap-1">
-          <Button size="sm" variant={mode === 'denominations' ? 'default' : 'outline'} onClick={() => setMode('denominations')}>Por billetes y monedas</Button>
-          <Button size="sm" variant={mode === 'total' ? 'default' : 'outline'} onClick={() => setMode('total')}>Solo el total</Button>
-        </div>
-        {mode === 'denominations' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {all.map((d) => (
-              <label key={d} className="flex items-center gap-2 text-sm">
-                <span className="w-20 text-right font-mono">{money(d)}</span>
-                <span className="text-muted-foreground">×</span>
-                <Input type="number" min="0" step="1" className="h-8" value={qty[d] ?? ''} onChange={(e) => setQty((q) => ({ ...q, [d]: e.target.value }))}
-                       aria-label={`Cantidad de ${money(d)}`} data-testid={`denom-${d}`} />
-              </label>
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <Label>Efectivo contado</Label>
-            <Input type="number" min="0" value={total} onChange={(e) => setTotal(e.target.value)} data-testid="counted-total" />
-          </div>
-        )}
-        <div className="grid grid-cols-3 gap-2 rounded-md border border-border p-3 text-sm">
-          <div><p className="text-xs text-muted-foreground">Esperado</p><p className="font-mono font-semibold">{money(expected)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Contado</p><p className="font-mono font-semibold">{money(counted)}</p></div>
-          <div>
-            <p className="text-xs text-muted-foreground">Diferencia</p>
-            <p className={`font-mono font-semibold ${diff === 0 ? '' : diff > 0 ? 'text-green-500' : 'text-red-500'}`} data-testid="close-diff">
-              {diff === 0 ? 'Cuadrada ✓' : `${diff > 0 ? 'Sobrante +' : 'Faltante −'}${money(Math.abs(diff))}`}
-            </p>
-          </div>
-        </div>
-        {others.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Otras formas de pago (verifica con los comprobantes)</p>
-            {others.map((m) => (
-              <label key={m.method} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={!!reconciled[m.method]} onChange={(e) => setReconciled((r) => ({ ...r, [m.method]: e.target.checked }))} />
-                {m.method}: <span className="font-mono">{money(m.expected)}</span> conciliado
-              </label>
-            ))}
-          </div>
-        )}
-        <div className="space-y-1">
-          <Label>Observaciones {diff !== 0 || forced ? '*' : '(opcional)'}</Label>
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={500}
-                 placeholder={forced ? 'Motivo del cierre forzado' : diff !== 0 ? 'Explica la diferencia' : ''} data-testid="close-notes" />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={submit} disabled={saving} data-testid="confirm-close-cash"><Lock className="h-4 w-4 mr-2" />{saving ? 'Cerrando…' : 'Cerrar caja'}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 const Cash = () => {
   const { user } = React.useContext(AuthContext);
@@ -435,60 +229,10 @@ const Cash = () => {
       </div>
 
       {/* Movimiento manual */}
-      <Dialog open={movOpen} onOpenChange={setMovOpen}>
-        <DialogContent data-testid="cash-movement-dialog">
-          <DialogHeader>
-            <DialogTitle>Registrar movimiento de efectivo</DialogTitle>
-            <DialogDescription>Ingreso (p. ej. más sencillo) o egreso (gasto, pago, retiro a la caja fuerte).</DialogDescription>
-          </DialogHeader>
-          <div className="flex gap-1">
-            <Button size="sm" variant={mov.kind === 'income' ? 'default' : 'outline'} onClick={() => setMov((m) => ({ ...m, kind: 'income' }))}>Ingreso</Button>
-            <Button size="sm" variant={mov.kind === 'expense' ? 'default' : 'outline'} onClick={() => setMov((m) => ({ ...m, kind: 'expense' }))}>Egreso</Button>
-          </div>
-          <div className="space-y-1"><Label>Monto *</Label><Input type="number" min="0" value={mov.amount} onChange={(e) => setMov((m) => ({ ...m, amount: e.target.value }))} /></div>
-          <div className="space-y-1"><Label>Motivo *</Label><Input value={mov.reason} maxLength={200} onChange={(e) => setMov((m) => ({ ...m, reason: e.target.value }))} /></div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMovOpen(false)}>Cancelar</Button>
-            <Button onClick={saveMovement} disabled={busy}>Guardar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <MovementDialog busy={busy} mov={mov} movOpen={movOpen} saveMovement={saveMovement} setMov={setMov} setMovOpen={setMovOpen} />
 
       {/* Detalle de una caja del historial */}
-      <Dialog open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="cash-detail-dialog">
-          {detail && (
-            <>
-              <DialogHeader>
-                <DialogTitle>Caja {detail.session_id} · {detail.status === 'open' ? 'abierta' : 'cerrada'}</DialogTitle>
-                <DialogDescription>
-                  {detail.cashier_name} ({detail.cashier_email}) · apertura {when(detail.opened_at)}
-                  {detail.closed_at ? ` · cierre ${when(detail.closed_at)}${detail.forced_close ? ` por ${detail.closed_by} (forzado)` : ''}` : ''}
-                </DialogDescription>
-              </DialogHeader>
-              {detail.status === 'closed' && (
-                <div className="grid grid-cols-3 gap-2 rounded-md border border-border p-3 text-sm">
-                  <div><p className="text-xs text-muted-foreground">Esperado</p><p className="font-mono">{money(detail.summary?.expected_cash)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Contado</p><p className="font-mono">{money(detail.counted_cash)}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Diferencia</p><p className="font-mono">{detail.difference ? `${detail.difference > 0 ? '+' : '−'}${money(Math.abs(detail.difference))}` : 'Cuadrada'}</p></div>
-                  {detail.closing_notes && <p className="col-span-3 text-xs text-muted-foreground">Observaciones: {detail.closing_notes}</p>}
-                </div>
-              )}
-              <SummaryTable summary={detail.summary} />
-              <Movements movements={detail.movements} />
-              <DialogFooter>
-                {detail.status === 'closed' && <Button variant="outline" onClick={() => printReport(detail)}><Printer className="h-4 w-4 mr-2" />Imprimir cierre</Button>}
-                {/* P2.33: cierre en PDF A4 (movimientos, por forma de pago y arqueo) o Excel */}
-                <ExportMenu url={`${API}/cash/sessions/${detail.session_id}/export`} formats={['pdf', 'xlsx']} label="Descargar"
-                            fallbackName={`caja_${detail.session_id}`} testId="cash-export-button" />
-                {detail.status === 'open' && isAdmin && detail.cashier_email !== user?.email && canUpdate('cash') && (
-                  <Button onClick={() => { setCloseTarget(detail); setDetail(null); }} data-testid="force-close-button"><Lock className="h-4 w-4 mr-2" />Cerrar (forzado)</Button>
-                )}
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <SessionDetailDialog canUpdate={canUpdate} detail={detail} isAdmin={isAdmin} setCloseTarget={setCloseTarget} setDetail={setDetail} user={user} />
 
       <CloseDialog
         open={!!closeTarget}

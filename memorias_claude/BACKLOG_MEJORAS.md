@@ -46,7 +46,7 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` OK (con fecha y nota de veri
 ## P2 — Calidad, testing y DevOps
 - [x] **20.** ✅ *(2026-11-06, mantenimiento fases 2 y 3)* Capa de servicios/repositorios en backend; limpiar imports duplicados de los routers.
 - [x] **21.** ✅ *(2026-11-06, mantenimiento fase 4)* API client centralizado en frontend con interceptor 401/403 (logout/redirección). Incluir llevar `getErrorMessage` (`lib/utils.js`, creado en P0.6) a **todas** las páginas: hoy solo lo usan Categories, PriceLists y Suppliers; el resto usa `error.response?.data?.detail || '...'`, que no muestra bien los errores 422 (regla [mensajes-al-usuario](mensajes-al-usuario.md)).
-- [ ] **22.** Partir páginas grandes (POS, Fios, Invoices, Purchases); usar react-hook-form + zod.
+- [~] **22.** ✅ parcial *(2026-11-06, fase 5: páginas partidas; react-hook-form + zod = fase 6)* Partir páginas grandes (POS, Fios, Invoices, Purchases); usar react-hook-form + zod.
 - [ ] **23.** Tests reales: unitarios, integración con BD efímera, E2E con Playwright.
 - [x] **24.** ✅ *(2026-11-05)* CI con GitHub Actions (lint + tests + build).
 - [x] **25.** Docker: imágenes nativas arm64/multi-arch, quitar `version`, auth en Mongo y no exponer 27017, backups, healthchecks. — OK 2026-11-04 · listo para Hostinger (`docker-compose.prod.yml`, HTTPS con Caddy, respaldos diarios + Google Drive) · verificado con un stack de producción aislado · guía `DESPLIEGUE_HOSTINGER.md`
@@ -247,6 +247,19 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` OK (con fecha y nota de veri
 - **Encontrado**: `login_throttle` intermitente (1 de 7 corridas) — el bloqueo de 3 s quedaba justo con 20 intentos simultáneos + 5 bcrypt; `run_all_tests.sh` ahora usa bloqueo 6 s / ventana 12 s (misma proporción).
 - **Resultado**: imagen del backend **759 MB → 508 MB (−33 %)**, 78 → 36 paquetes; 26/26 baterías verdes con un **entorno limpio** que solo tiene las dependencias nuevas; lint OK; la imagen importa las 128 rutas. Merge `cf35534`.
 - **Para el usuario**: actualizar su entorno local con `backend/.venv/bin/pip install -r backend/requirements-dev.txt` (ya lo hice en su Mac) y reconstruir el backend en Docker.
+
+### 2026-11-06 · Mantenimiento fase 5 — Partir pantallas por funcionalidad (P2.22) ✅
+- Rama `mantenimiento-5-pantallas`. **Las pantallas se ven igual**: en cada una se reconstruyó el JSX reemplazando los componentes extraídos por su contenido y se comparó con el original (idéntico, ignorando la indentación): POS 474 líneas de JSX, Fios 546, Compras 525, Caja 260, Productos 467.
+- **POS 881 → 202 líneas** → `features/pos/`: `cart.js` (reglas puras del carrito: agregar, cambiar/escribir cantidad, quitar, re-precio al cambiar de cliente, totales, precio por lista), `usePosState.js` (`useCart`, `useCreditStatus`, `useCashState`, `ymd`/`addDays`), `ClientSection`, `ProductSection`, `CartSection`. **Prueba nueva `tests/frontend_cart_check.js`**: compara cada regla con el código original copiado tal cual en 16.990 operaciones aleatorias (semilla fija): idénticas; verificada con una mutación a propósito (`>` → `>=`: 55 diferencias detectadas).
+- **Fios 641 → 206** → `features/fios/` (`ClientDetail`, `SummaryCards`, `AgingCard`, `FiltersBar`, `AccountsTable`, `constants.js` con FILTERS) + `components/StatusBadge.js` compartido.
+- **Compras 613 → 271** → `features/purchases/` (`PurchaseDialog` con 31 props — se reduce en la fase 6 con un hook de formulario —, `PurchasesTable`).
+- **Caja 506 → 249** → `features/cash/` (`CloseDialog`, `SessionParts` con SummaryTable/Movements/printReport, `MovementDialog`, `SessionDetailDialog`).
+- **Productos 555 → 245** → `features/products/` (`ProductDialog`, `ProductsTable`, `pricing.js` con `pricingProblem` y `DEFAULT_PRICE_LIST`).
+- **`hooks/useServerSearch.js`** (búsqueda mientras se escribe: 2 caracteres, 300 ms, descarta respuestas viejas, `onResults`): reemplaza **4 copias** (POS clientes y productos, Compras proveedores y productos, Ajustes productos). Devoluciones conserva la suya (busca también sin texto y solo con el diálogo abierto).
+- **Herramientas de refactor** (en el scratchpad, no en el repo): extractor de componentes con análisis de alcance de Babel (las props son exactamente las variables del padre que usa el bloque; el lint de nombres sin definir confirma que no falta ninguna), movedor de declaraciones de nivel superior, verificador de JSX reconstruido y quitador de imports sin usar.
+- **Errores atrapados por las verificaciones**: el JSX del POS usaba `getProductPrice` y `setCart` (para dejar vacía la cantidad mientras se escribe) que la lógica movida no exponía → lint; el quitador de imports rompía los alias (`money as money0`) → check de sintaxis; `printReport` salió sin `export` (tenía un comentario encima) → check de imports no exportados. Todos corregidos (también en las herramientas).
+- **No se hizo (decidido)**: módulos `api/<dominio>.js` (el cliente central ya da un solo punto; agregarían una capa sin beneficio hoy), PageHeader y buscadores visuales compartidos (los de POS/Compras/Ajustes tienen diseños distintos; se unificó la lógica con useServerSearch), y los `toLocaleString` en línea con 2 decimales mínimos del POS/Compras (no coinciden con ningún formato de lib/format; cambiarlos cambiaría la vista).
+- Suite completa **31/31** (26 backend + 5 frontend); build de Docker OK (quedan 8 avisos antiguos de dependencias de useEffect).
 
 ### 2026-11-06 · Mantenimiento fase 4 — Frontend base (P2.21) ✅
 - Rama `mantenimiento-4-frontend-base`. **Las pantallas se ven y funcionan igual** (salvo las confirmaciones, ver abajo). Sin navegador en este entorno: verificado con build de Docker + 4 pruebas nuevas/existentes del frontend.
