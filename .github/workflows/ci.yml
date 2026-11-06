@@ -1,0 +1,118 @@
+# Boltrex — Integración continua (backlog P2.24)
+#
+# Corre en cada push a cualquier rama y en cada Pull Request a main (decisión 1A).
+# main no está protegida (decisión 2A): antes de mezclar una rama se revisa que su CI esté en ✅.
+# Lint solo de errores reales (decisión 3A): sintaxis, nombres sin definir e imports que no existen.
+#
+# Trabajos en paralelo:
+#   backend   → lint + las 25 baterías de integración contra Mongo 6 (replica set) — scripts/run_all_tests.sh
+#   frontend  → mapa de permisos del menú + build de la imagen Docker del frontend
+#   imagenes  → build de la imagen Docker del backend (la que se desplegaría en el VPS)
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint + pruebas de integración)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Mongo de prueba sin contraseña, solo dentro de la máquina del CI.
+      MONGO_URL: mongodb://localhost:27017/?directConnection=true
+      BOLTREX_ADMIN_PASSWORD: Prueba-Admin-2026
+      JWT_SECRET_KEY: ci-solo-para-pruebas-no-es-un-secreto-real
+      BOLTREX_TEST_LOGS: ${{ github.workspace }}/.test-logs
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mongo 6 en modo replica set (lo necesitan las transacciones)
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:6.0 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval "db.adminCommand('ping').ok" >/dev/null 2>&1 && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval "rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]})"
+          for i in $(seq 1 60); do
+            [ "$(docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary')" = "true" ] && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval "printjson(db.hello().isWritablePrimary)"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"          # la misma de backend/Dockerfile
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias del backend
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/pip install --upgrade pip
+          backend/.venv/bin/pip install -r backend/requirements.txt
+
+      - name: Lint (solo errores reales)
+        run: |
+          backend/.venv/bin/pip install ruff==0.6.9
+          # E9 sintaxis · F63/F7 errores de lógica de Python · F82 nombres sin definir
+          backend/.venv/bin/ruff check --select E9,F63,F7,F82 --output-format github backend scripts tests
+          # Que el backend arranque sus imports (detecta módulos o funciones que no existen)
+          cd backend && DB_NAME=boltrex_importtest ../backend/.venv/bin/python -c "import main; print('Backend importa OK:', len(main.app.routes), 'rutas')"
+
+      - name: Pruebas de integración (25 baterías)
+        run: scripts/run_all_tests.sh
+
+      - name: Logs de las pruebas (si algo falló)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-pruebas
+          path: .test-logs/
+          retention-days: 7
+
+  frontend:
+    name: Frontend (permisos del menú + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"              # la misma de frontend/Dockerfile
+
+      - name: Instalar dependencias del frontend
+        working-directory: frontend
+        run: |
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install ajv ajv-keywords --legacy-peer-deps --no-audit --no-fund
+
+      - name: Mapa de permisos del menú
+        run: node tests/frontend_access_check.js
+
+      - name: Build de la imagen Docker del frontend
+        run: docker build -t boltrex-frontend:ci -f frontend/Dockerfile .
+
+  imagenes:
+    name: Imagen Docker del backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build de la imagen Docker del backend
+        run: docker build -t boltrex-backend:ci -f backend/Dockerfile .
+      - name: La imagen arranca (importa la app)
+        run: docker run --rm -e DB_NAME=boltrex_importtest boltrex-backend:ci python -c "import main; print('OK', len(main.app.routes), 'rutas')"

@@ -1,5 +1,7 @@
 # Boltrex
 
+[![CI](https://github.com/kamurotorres/ProyectoBoltrex-ia/actions/workflows/ci.yml/badge.svg)](https://github.com/kamurotorres/ProyectoBoltrex-ia/actions/workflows/ci.yml)
+
 Sistema de **punto de venta (POS) e inventario**: productos con listas de precios, clientes, proveedores, compras, ventas de contado y a crédito (Fios), devoluciones, control de caja con arqueo, reportes, dashboard, auditoría y roles con permisos.
 
 | Parte | Tecnología |
@@ -31,8 +33,12 @@ App en http://localhost:3000 · API en http://localhost:8000/docs · usuario `ad
 
 ## Pruebas
 
+Todas las baterías de integración con un solo comando (Mongo de Docker levantado; usa BD temporales y nunca toca `boltrex`):
+
 ```bash
-source tests/test_env.sh
-DB_NAME=boltrex_qatest tests/prepare_test_db.sh
+scripts/run_all_tests.sh              # todas (≈ lo mismo que corre el CI)
+scripts/run_all_tests.sh credit cash  # solo algunas
 ```
+
+El CI de GitHub Actions (`.github/workflows/ci.yml`) las corre en cada push, junto con el lint y los builds de las imágenes.
 Detalle en [LEVANTAR_PROYECTO.md §6](memorias_claude/LEVANTAR_PROYECTO.md).
