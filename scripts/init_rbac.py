@@ -13,7 +13,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from passlib.context import CryptContext
+from core.passwords import hash_password   # bcrypt (P2.26)
 from rbac import DEFAULT_MODULES, DEFAULT_ROLES
 
 # Load environment
@@ -22,7 +22,6 @@ load_dotenv(BACKEND_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 db_name = os.environ['DB_NAME']
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def initial_admin_password() -> str:
@@ -101,7 +100,7 @@ async def initialize_rbac():
     print("\nVerificando usuario admin...")
     admin_exists = await db.users_extended.find_one({"email": "admin@boltrex.com"})
     if not admin_exists:
-        hashed_pw = pwd_context.hash(initial_admin_password())
+        hashed_pw = hash_password(initial_admin_password())
         admin_user = {
             "email": "admin@boltrex.com",
             "first_name": "Admin",

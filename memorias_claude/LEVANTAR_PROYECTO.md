@@ -101,7 +101,7 @@ Los usuarios nuevos los crea el administrador en **Usuarios** (menú lateral) y 
 cd backend
 python3.12 -m venv .venv
 .venv/bin/pip install --upgrade pip
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r requirements-dev.txt   # producción + pruebas y lint (P2.26)
 cd ..
 ```
 

@@ -1,0 +1,7 @@
+# Boltrex — dependencias de DESARROLLO y pruebas (no van a producción).
+#   python -m venv backend/.venv && backend/.venv/bin/pip install -r backend/requirements-dev.txt
+-r requirements.txt
+
+requests==2.32.5              # pruebas de integración (tests/*_check.py)
+ruff==0.6.9                   # lint (el CI usa: --select E9,F63,F7,F82)
+pytest==9.0.2                 # pruebas unitarias (fase 7)

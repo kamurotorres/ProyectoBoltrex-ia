@@ -17,7 +17,6 @@ from models.auth import *
 from models.billing import *
 from models.inventory import *
 from models.entities import *
-import pandas as pd
 import io
 import csv
 from fastapi.responses import StreamingResponse

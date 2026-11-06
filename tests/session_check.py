@@ -170,7 +170,7 @@ requests.delete(f"{B}/rbac/users/{U}", headers=A)
 check("eliminar usuario → sesiones borradas", mongo.sessions.count_documents({"email": U}) == 0 and me(h).status_code == 401)
 
 # --- Tokens manipulados o antiguos ---
-from jose import jwt  # noqa: E402
+import jwt  # noqa: E402  (PyJWT)
 from core.config import SECRET_KEY, ALGORITHM  # noqa: E402
 
 exp = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -178,7 +178,7 @@ old = jwt.encode({"sub": "admin@boltrex.com", "exp": exp}, SECRET_KEY, algorithm
 check("token sin sesión (emitido antes de P1.11) → 401 'expiró'", is_401(me({"Authorization": f"Bearer {old}"}), MSG_EXPIRED))
 fake = jwt.encode({"sub": "admin@boltrex.com", "sid": uuid.uuid4().hex, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
 check("token con sesión inventada → 401 'cerrada'", is_401(me({"Authorization": f"Bearer {fake}"}), MSG_CLOSED))
-admin_sid = jwt.get_unverified_claims(A["Authorization"].split()[1])["sid"]
+admin_sid = jwt.decode(A["Authorization"].split()[1], options={"verify_signature": False})["sid"]
 other = f"ot_{uuid.uuid4().hex[:6]}@example.com"
 stolen = jwt.encode({"sub": other, "sid": admin_sid, "exp": exp}, SECRET_KEY, algorithm=ALGORITHM)
 check("sesión de otro usuario en el token → 401", me({"Authorization": f"Bearer {stolen}"}).status_code == 401)

@@ -24,7 +24,7 @@ if [[ -z "${MONGO_URL:-}" ]]; then
 fi
 export MONGO_URL="${MONGO_URL:-mongodb://localhost:27017/?directConnection=true}"
 export ADMIN_INITIAL_PASSWORD="${BOLTREX_ADMIN_PASSWORD:-Prueba-Admin-2026}"
-PY=backend/.venv/bin/python
+PY="${PY:-backend/.venv/bin/python}"
 
 $PY - <<'EOF'
 import os, pymongo
