@@ -99,7 +99,7 @@ const Import = () => {
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ];
-    
+
     if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
       toast.error('Tipo de archivo no válido. Use CSV o Excel (.xlsx, .xls)');
       return;
@@ -119,7 +119,7 @@ const Import = () => {
       });
 
       setResults(response.data);
-      
+
       if (response.data.success > 0) {
         toast.success(`${response.data.success} registros importados exitosamente`);
       }
@@ -140,7 +140,7 @@ const Import = () => {
       const response = await axios.get(`${API}/import/templates/${moduleId}`, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -148,7 +148,7 @@ const Import = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
+
       toast.success('Plantilla descargada');
     } catch (error) {
       toast.error('Error al descargar plantilla');
@@ -259,6 +259,9 @@ const Import = () => {
                           )}
                         </Button>
                       </label>
+                      {!canCreate('import') && (
+                        <p className="text-xs text-muted-foreground mt-2">Tu rol no tiene permiso para importar datos.</p>
+                      )}
                     </div>
                   </div>
                 </CardContent>

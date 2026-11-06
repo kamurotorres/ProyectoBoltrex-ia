@@ -129,7 +129,11 @@ DEFAULT_MODULES = [
     {"name": "Usuarios", "slug": "users", "description": "Gestión de usuarios"},
     {"name": "Roles", "slug": "roles", "description": "Gestión de roles"},
     {"name": "Permisos", "slug": "permissions", "description": "Gestión de permisos"},
-    {"name": "Listas de Precios", "slug": "price-lists", "description": "Gestión de listas de precios"}
+    {"name": "Listas de Precios", "slug": "price-lists", "description": "Gestión de listas de precios"},
+    # P2.31: ver = su caja e historial · crear = abrir y registrar movimientos · editar = cerrar
+    {"name": "Caja", "slug": "cash", "description": "Apertura, movimientos y cierre de caja con arqueo"},
+    # P2.32: catálogo de motivos de los ajustes de inventario (los ajustes son `inventory` → crear)
+    {"name": "Motivos de ajuste", "slug": "adjustment-reasons", "description": "Catálogo de motivos para ajustes de inventario"}
 ]
 
 # ==================== DEFAULT ROLES ====================
@@ -153,7 +157,8 @@ DEFAULT_ROLES = [
             "fios": Permission(read=True, create=True),
             "payment-methods": Permission(read=True),
             "inventory": Permission(read=True),
-            "reports": Permission(read=True)
+            "reports": Permission(read=True),
+            "cash": Permission(read=True, create=True, update=True)
         }
     },
     {
@@ -173,7 +178,8 @@ DEFAULT_ROLES = [
             "payment-methods": Permission(read=True, create=True, update=True),
             "ticket-config": Permission(read=True, update=True),
             "inventory": Permission(read=True),
-            "reports": Permission(read=True)
+            "reports": Permission(read=True),
+            "cash": Permission(read=True, create=True, update=True)
         }
     }
 ]

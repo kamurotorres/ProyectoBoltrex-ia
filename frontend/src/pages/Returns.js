@@ -23,11 +23,17 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, RotateCcw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+import { notifyDataChanged } from '@/lib/events';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 
 const Returns = () => {
   const { canCreate } = usePermissions();
-  const [returns, setReturns] = useState([]);
+  // P1.18: devoluciones paginadas; la factura a devolver se busca en el servidor (cualquier antigüedad).
+  const list = usePaginatedList(`${API}/returns`, { errorMessage: 'Error al cargar devoluciones' });
+  const returns = list.items;
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,45 +42,76 @@ const Returns = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [returnItems, setReturnItems] = useState([]);
 
+  // Facturas que aún admiten devolución (una con devolución parcial puede recibir más).
+  // Sin texto: las 10 más recientes; con texto: búsqueda por número, cliente o documento.
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!dialogOpen) return undefined;
+    const t = setTimeout(async () => {
+      try {
+        const params = { exclude_status: 'returned', page_size: 10 };
+        if (searchInvoice.trim()) params.search = searchInvoice.trim();
+        const res = await axios.get(`${API}/invoices`, { params });
+        setInvoices(res.data.items || []);
+      } catch (error) {
+        toast.error(getErrorMessage(error, 'Error al buscar facturas'));
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInvoice, dialogOpen]);
+
+  useEffect(() => {
+    if (!list.loading) setLoading(false);
+  }, [list.loading]);
 
   const fetchData = async () => {
-    try {
-      const [returnsRes, invoicesRes] = await Promise.all([
-        axios.get(`${API}/returns`),
-        axios.get(`${API}/invoices`)
-      ]);
-      setReturns(returnsRes.data);
-      setInvoices(invoicesRes.data.filter(inv => inv.status === 'completed'));
-    } catch (error) {
-      toast.error('Error al cargar datos');
-    } finally {
-      setLoading(false);
-    }
+    await list.reload();
   };
 
-  const handleSelectInvoice = (invoice) => {
+  const handleSelectInvoice = async (invoice) => {
+    // Unidades ya devueltas de esta factura, por producto (el backend valida lo mismo).
+    // Se consultan en el servidor: la lista de abajo está paginada (P1.18).
+    let previous = [];
+    try {
+      const res = await axios.get(`${API}/returns`, { params: { invoice_number: invoice.invoice_number, page_size: 200 } });
+      previous = res.data.items || [];
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'No se pudieron consultar las devoluciones previas de la factura'));
+      return;
+    }
+    const returnedByBarcode = {};
+    previous
+      .forEach(ret => ret.items.forEach(item => {
+        returnedByBarcode[item.barcode] = (returnedByBarcode[item.barcode] || 0) + item.quantity;
+      }));
+
     setSelectedInvoice(invoice);
-    setReturnItems(invoice.items.map(item => ({
-      ...item,
-      return_quantity: 0
-    })));
+    setReturnItems(invoice.items.map(item => {
+      // Si una referencia aparece en varias líneas, lo devuelto se descuenta línea por línea.
+      const alreadyReturned = Math.min(returnedByBarcode[item.barcode] || 0, item.quantity);
+      returnedByBarcode[item.barcode] = (returnedByBarcode[item.barcode] || 0) - alreadyReturned;
+      return {
+        ...item,
+        available_quantity: item.quantity - alreadyReturned,
+        return_quantity: 0
+      };
+    }));
   };
 
   const handleQuantityChange = (index, value) => {
     const newItems = [...returnItems];
-    const maxQty = newItems[index].quantity;
-    const qty = Math.min(parseInt(value) || 0, maxQty);
+    const maxQty = newItems[index].available_quantity;
+    const qty = Math.max(0, Math.min(parseInt(value) || 0, maxQty));
     newItems[index].return_quantity = qty;
     setReturnItems(newItems);
   };
 
+  // Precio unitario con IVA: es lo que se cobró y lo que se reembolsa.
+  const unitPriceWithTax = (item) => item.unit_price * (1 + (item.tax_rate || 0) / 100);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    
+
     const itemsToReturn = returnItems.filter(item => item.return_quantity > 0);
     if (itemsToReturn.length === 0) {
       toast.error('Selecciona al menos un producto para devolver');
@@ -83,21 +120,27 @@ const Returns = () => {
 
     setIsSubmitting(true);
     try {
-      await axios.post(`${API}/returns`, {
+      const res = await axios.post(`${API}/returns`, {
         invoice_number: selectedInvoice.invoice_number,
+        // Precio e importes los calcula el servidor a partir de la factura.
         items: itemsToReturn.map(item => ({
           barcode: item.barcode,
           product_name: item.product_name,
-          quantity: item.return_quantity,
-          unit_price: item.unit_price,
-          total: item.unit_price * item.return_quantity
+          quantity: item.return_quantity
         }))
       });
-      toast.success('Devolución registrada exitosamente');
+      notifyDataChanged();
+      // P2.31: si el cliente ya había pagado más que el nuevo total, se le entrega efectivo de la caja.
+      const refund = res.data?.refund_amount || 0;
+      if (refund > 0) {
+        toast.success(`Devolución registrada. Entrega al cliente $${Math.round(refund).toLocaleString('es-CO')} en efectivo (sale de tu caja).`, { duration: 8000 });
+      } else {
+        toast.success('Devolución registrada. No hay dinero que entregar: se descontó de lo que el cliente debe o de su factura.');
+      }
       fetchData();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al registrar devolución');
+      toast.error(getErrorMessage(error, 'Error al registrar devolución'));
     } finally {
       setIsSubmitting(false);
     }
@@ -110,11 +153,7 @@ const Returns = () => {
     setSearchInvoice('');
   };
 
-  const filteredInvoices = invoices.filter(inv =>
-    searchInvoice === '' ||
-    inv.invoice_number.toLowerCase().includes(searchInvoice.toLowerCase()) ||
-    inv.client_name.toLowerCase().includes(searchInvoice.toLowerCase())
-  );
+  const filteredInvoices = invoices;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -211,8 +250,9 @@ const Returns = () => {
                             <TableRow>
                               <TableHead>Producto</TableHead>
                               <TableHead className="text-right">Cant. Original</TableHead>
+                              <TableHead className="text-right">Disponible</TableHead>
                               <TableHead className="text-right">Cant. a Devolver</TableHead>
-                              <TableHead className="text-right">Precio Unit.</TableHead>
+                              <TableHead className="text-right">Precio Unit. (con IVA)</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -220,18 +260,20 @@ const Returns = () => {
                               <TableRow key={index}>
                                 <TableCell>{item.product_name}</TableCell>
                                 <TableCell className="text-right font-mono">{item.quantity}</TableCell>
+                                <TableCell className="text-right font-mono" data-testid={`return-available-${index}`}>{item.available_quantity}</TableCell>
                                 <TableCell className="text-right">
                                   <Input
                                     type="number"
                                     min="0"
-                                    max={item.quantity}
+                                    max={item.available_quantity}
                                     value={item.return_quantity}
                                     onChange={(e) => handleQuantityChange(index, e.target.value)}
+                                    disabled={item.available_quantity === 0}
                                     className="w-20 text-right font-mono"
                                     data-testid={`return-quantity-${index}`}
                                   />
                                 </TableCell>
-                                <TableCell className="text-right font-mono">${item.unit_price.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-mono">${unitPriceWithTax(item).toFixed(2)}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -243,7 +285,7 @@ const Returns = () => {
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total a Devolver:</span>
                         <span className="font-mono" data-testid="return-total">
-                          ${returnItems.reduce((sum, item) => sum + (item.unit_price * item.return_quantity), 0).toFixed(2)}
+                          ${returnItems.reduce((sum, item) => sum + (unitPriceWithTax(item) * item.return_quantity), 0).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -299,11 +341,12 @@ const Returns = () => {
         </Table>
       </div>
 
-      {returns.length === 0 && (
+      {returns.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-returns">
           No se encontraron devoluciones registradas
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="devolución(es)" testId="returns-pagination" />
     </div>
   );
 };

@@ -1,37 +1,110 @@
-version: "3.8"
+# Boltrex — servicios comunes a desarrollo (tu Mac) y producción (Hostinger). Backlog P2.25.
+#
+#   Desarrollo:  docker compose up -d --build            (se añade solo docker-compose.override.yml)
+#   Producción:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Variables: archivo `.env` en esta carpeta (ver `.env.example`) + `backend/.env` (ver `backend/.env.example`).
+# Las imágenes ya no fuerzan linux/amd64: corren nativas en Apple Silicon (arm64) y en el VPS (x86_64).
+
+x-logging: &default-logging
+  # Sin límite, los logs de meses de uso pueden llenar el disco del servidor.
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
+  # Genera (solo la primera vez) la clave interna que exige un replica set con autenticación.
+  mongo-keyfile:
+    image: mongo:6.0
+    entrypoint:
+      - sh
+      - -c
+      - "[ -s /keyfile/mongo.key ] || (head -c 512 /dev/urandom | base64 | tr -d '\\n' > /keyfile/mongo.key); chmod 400 /keyfile/mongo.key; chown 999:999 /keyfile/mongo.key"
+    volumes:
+      - mongo_keyfile:/keyfile
+    restart: "no"
+    logging: *default-logging
+
   mongo:
     image: mongo:6.0
-    restart: always
+    restart: unless-stopped
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    # Replica set de un nodo (las transacciones lo exigen) + autenticación con keyFile.
+    # wiredTigerCacheSizeGB acota la memoria de Mongo para que no compita con el resto.
+    command: ["--replSet", "rs0", "--bind_ip_all", "--keyFile", "/keyfile/mongo.key",
+              "--wiredTigerCacheSizeGB", "${MONGO_CACHE_GB:-1}"]
+    environment:
+      # Usuario administrador: se crea solo cuando el volumen de datos está vacío.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?Define MONGO_ROOT_USER en .env (ver .env.example)}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env (ver .env.example)}
+      # Usuario de la aplicación (solo lectura/escritura en su base): lo crea mongo-init/.
+      MONGO_APP_USER: ${MONGO_APP_USER:-boltrex_app}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:?Define MONGO_APP_PASSWORD en .env (ver .env.example)}
+      MONGO_APP_DB: ${DB_NAME:-boltrex}
     volumes:
       - mongo_data:/data/db
-    ports:
-      - "27017:27017"
+      - mongo_keyfile:/keyfile:ro
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    # Inicializa el replica set la primera vez y queda "healthy" cuando el nodo es PRIMARY.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD"
+          --authenticationDatabase admin --eval
+          "try { rs.status() } catch (e) { rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo:27017'}]}) }; quit(db.hello().isWritablePrimary ? 0 : 1)"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+    mem_limit: ${MONGO_MEM_LIMIT:-2g}
+    logging: *default-logging
 
   backend:
-    platform: linux/amd64
     build:
       context: .
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
     depends_on:
-      - mongo
-    # Montar el archivo de entorno para que server.py pueda leer backend/.env
+      mongo:
+        condition: service_healthy
+    # backend/.env: secretos de la app (JWT, ADMIN_INITIAL_PASSWORD, tiempos de sesión...).
     volumes:
       - ./backend/.env:/app/.env:ro
-    ports:
-      - "8000:8000"
-    restart: always
+    # Dentro de Docker, Mongo se alcanza por el nombre del servicio y con el usuario de la app.
+    # Las variables de entorno tienen prioridad sobre backend/.env (load_dotenv no las sobrescribe).
+    # Las contraseñas de Mongo deben ser alfanuméricas (van dentro de esta URL).
+    environment:
+      - MONGO_URL=mongodb://${MONGO_APP_USER:-boltrex_app}:${MONGO_APP_PASSWORD}@mongo:27017/${DB_NAME:-boltrex}?replicaSet=rs0&authSource=admin
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: ${BACKEND_MEM_LIMIT:-1g}
+    logging: *default-logging
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    restart: unless-stopped
     depends_on:
-      - backend
-    ports:
-      - "3000:80"
-    restart: always
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: ${FRONTEND_MEM_LIMIT:-256m}
+    logging: *default-logging
 
 volumes:
   mongo_data:
+  mongo_keyfile:

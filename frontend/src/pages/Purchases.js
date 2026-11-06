@@ -24,12 +24,45 @@ import {
 import { Plus, Trash2, Search, Package, Truck, ShoppingBag, Edit, Eye, CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
+import ExportMenu from '@/components/ExportMenu';
+import { getErrorMessage } from '@/lib/utils';
+import { notifyDataChanged } from '@/lib/events';
+
+// Búsqueda en el servidor para los desplegables del formulario (P1.18).
+const useServerSearch = (url, text, pageSize = 10) => {
+  const [results, setResults] = React.useState([]);
+  const req = React.useRef(0);
+  React.useEffect(() => {
+    const q = (text || '').trim();
+    if (q.length < 2) {
+      setResults([]);
+      return undefined;
+    }
+    const id = ++req.current;
+    const t = setTimeout(async () => {
+      try {
+        const res = await axios.get(url, { params: { search: q, page_size: pageSize } });
+        if (id === req.current) setResults(res.data.items || []);
+      } catch (error) {
+        if (id === req.current) toast.error(getErrorMessage(error, 'Error al buscar'));
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [url, text, pageSize]);
+  return results;
+};
 
 const Purchases = () => {
   const { canCreate, canUpdate } = usePermissions();
-  const [purchases, setPurchases] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [products, setProducts] = useState([]);
+  // P1.18: compras paginadas en el servidor; proveedores y productos se buscan en el servidor.
+  const [statusFilter, setStatusFilter] = useState('');
+  const list = usePaginatedList(`${API}/purchases`, {
+    params: statusFilter ? { status: statusFilter } : {},
+    errorMessage: 'Error al cargar compras',
+  });
+  const purchases = list.items;
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmingId, setConfirmingId] = useState(null);
@@ -64,31 +97,16 @@ const Purchases = () => {
 
   const fetchData = async () => {
     try {
-      const [purchasesRes, suppliersRes, productsRes] = await Promise.all([
-        axios.get(`${API}/purchases`),
-        axios.get(`${API}/suppliers`),
-        axios.get(`${API}/products`)
-      ]);
-      setPurchases(purchasesRes.data);
-      setSuppliers(suppliersRes.data);
-      setProducts(productsRes.data);
-    } catch (error) {
-      toast.error('Error al cargar datos');
+      await list.reload();
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSuppliers = supplierSearch.length >= 2
-    ? suppliers.filter(s => s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-    : [];
-
-  const filteredProducts = productSearch.length >= 2
-    ? products.filter(p =>
-        p.barcode.toLowerCase().includes(productSearch.toLowerCase()) ||
-        p.name.toLowerCase().includes(productSearch.toLowerCase())
-      ).slice(0, 8)
-    : [];
+  const supplierResults = useServerSearch(`${API}/suppliers`, supplierSearch);
+  const productResults = useServerSearch(`${API}/products`, productSearch, 8);
+  const filteredSuppliers = supplierSearch.length >= 2 ? supplierResults : [];
+  const filteredProducts = productSearch.length >= 2 ? productResults : [];
 
   const handleSelectSupplier = (supplier) => {
     setSelectedSupplier(supplier);
@@ -154,8 +172,7 @@ const Purchases = () => {
   const openEditDialog = (purchase) => {
     setDialogMode('edit');
     setCurrentPurchase(purchase);
-    const sup = suppliers.find(s => s.name === purchase.supplier_name);
-    setSelectedSupplier(sup || { name: purchase.supplier_name });
+    setSelectedSupplier({ name: purchase.supplier_name });
     setSupplierSearch(purchase.supplier_name);
     setItems(purchase.items.map(i => ({ ...i })));
     setProductSearch('');
@@ -165,8 +182,7 @@ const Purchases = () => {
   const openViewDialog = (purchase) => {
     setDialogMode('readonly');
     setCurrentPurchase(purchase);
-    const sup = suppliers.find(s => s.name === purchase.supplier_name);
-    setSelectedSupplier(sup || { name: purchase.supplier_name });
+    setSelectedSupplier({ name: purchase.supplier_name });
     setSupplierSearch(purchase.supplier_name);
     setItems(purchase.items.map(i => ({ ...i })));
     setProductSearch('');
@@ -221,6 +237,7 @@ const Purchases = () => {
     setConfirmingId(purchaseNumber);
     try {
       await axios.post(`${API}/purchases/${purchaseNumber}/confirm`);
+      notifyDataChanged();
       toast.success('Compra confirmada e inventario actualizado');
       fetchData();
     } catch (error) {
@@ -491,6 +508,27 @@ const Purchases = () => {
       </Dialog>
 
       {/* ======= PURCHASES TABLE ======= */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por código de compra o proveedor..."
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
+            className="pl-10"
+            data-testid="search-purchases-input"
+          />
+        </div>
+        <select className="h-9 rounded-md border border-input bg-transparent px-3 text-sm" value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)} aria-label="Estado" data-testid="purchases-status-filter">
+          <option value="">Todas</option>
+          <option value="borrador">Borradores</option>
+          <option value="confirmado">Confirmadas</option>
+        </select>
+        {/* P2.33: Excel (Compras + Detalle) · PDF · CSV con la búsqueda y el estado activos */}
+        <ExportMenu url={`${API}/purchases/export`} className="ml-auto" fallbackName="compras" testId="export-purchases-button"
+                    params={{ ...(statusFilter ? { status: statusFilter } : {}), ...(list.search.trim() ? { search: list.search.trim() } : {}) }} />
+      </div>
       <div className="border rounded-md">
         <Table>
           <TableHeader>
@@ -562,11 +600,12 @@ const Purchases = () => {
         </Table>
       </div>
 
-      {purchases.length === 0 && (
+      {purchases.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-purchases">
           No se encontraron compras registradas
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="compra(s)" testId="purchases-pagination" />
     </div>
   );
 };

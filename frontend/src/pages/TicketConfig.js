@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { 
-  Settings, 
-  Save, 
+import {
+  Settings,
+  Save,
   Building2,
   Phone,
   Mail,
@@ -72,12 +72,12 @@ const TicketConfig = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (saving) return;
-    
+
     if (!config.company_name.trim()) {
       toast.error('El nombre de la empresa es requerido');
       return;
     }
-    
+
     try {
       setSaving(true);
       await axios.put(`${API}/ticket-config`, config);
@@ -112,6 +112,8 @@ const TicketConfig = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Sin permiso de editar, los campos quedan de solo lectura (P1.13). */}
+        <fieldset disabled={!canUpdate('ticket-config')} className="space-y-6 disabled:opacity-90">
         {/* Company Info Card */}
         <Card>
           <CardHeader>
@@ -263,7 +265,7 @@ const TicketConfig = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div 
+            <div
               className="bg-white text-black p-4 rounded-lg font-mono text-sm text-center border"
               style={{ maxWidth: config.ticket_width === 58 ? '220px' : '300px' }}
               data-testid="ticket-preview"
@@ -278,12 +280,14 @@ const TicketConfig = () => {
             </div>
           </CardContent>
         </Card>
+        </fieldset>
 
         {/* Actions */}
+        {canUpdate('ticket-config') && (
         <div className="flex justify-end gap-2">
-          <Button 
-            type="button" 
-            variant="outline" 
+          <Button
+            type="button"
+            variant="outline"
             onClick={fetchConfig}
             disabled={saving}
             data-testid="reset-btn"
@@ -302,6 +306,7 @@ const TicketConfig = () => {
             </Button>
           )}
         </div>
+        )}
       </form>
     </div>
   );

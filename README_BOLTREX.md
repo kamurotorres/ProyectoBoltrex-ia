@@ -174,25 +174,15 @@ El sistema utiliza un tema oscuro minimalista con las siguientes característica
 
 ### Configuración Inicial
 
-1. El sistema ya está configurado y corriendo en el ambiente
-2. Datos iniciales ya creados:
+Ver [README.md](README.md) y [memorias_claude/LEVANTAR_PROYECTO.md](memorias_claude/LEVANTAR_PROYECTO.md). La carga inicial (`scripts/seed_docker.sh`) crea:
    - 5 categorías (Electrónica, Alimentos, Bebidas, Hogar, Otros)
    - 4 tipos de documento (CC, NIT, CE, Pasaporte)
    - 3 listas de precios (default, mayorista, minorista)
-   - 1 tasa de IVA activa (19%)
+   - formas de pago y la configuración del ticket
 
 ### Primer Usuario
 
-Para crear tu primer usuario, visita la página de login y selecciona "Registrarse":
-
-```json
-{
-  "email": "admin@tuempresa.com",
-  "password": "tu_contraseña_segura",
-  "full_name": "Tu Nombre",
-  "role": "admin"
-}
-```
+El administrador `admin@boltrex.com` se crea con la contraseña de `ADMIN_INITIAL_PASSWORD` (en `backend/.env`) y debe cambiarla al primer ingreso. Los demás usuarios los crea el administrador en **Usuarios** (el registro público está desactivado).
 
 ### Flujo Básico de Uso
 
@@ -278,31 +268,18 @@ El sistema está diseñado con arquitectura API-first, lo que permite:
 
 ## 🐛 Solución de Problemas
 
-### El backend no responde
 ```bash
-sudo supervisorctl restart backend
+docker compose ps                    # estado de los servicios
+docker compose logs -f backend       # logs del backend (o frontend, mongo)
+docker compose restart backend       # reiniciar un servicio
 ```
-
-### El frontend no carga
-```bash
-sudo supervisorctl restart frontend
-```
-
-### Verificar logs del backend
-```bash
-tail -f /var/log/supervisor/backend.err.log
-```
-
-### Verificar logs del frontend
-```bash
-tail -f /var/log/supervisor/frontend.err.log
-```
+Más casos en [memorias_claude/LEVANTAR_PROYECTO.md](memorias_claude/LEVANTAR_PROYECTO.md) §4.
 
 ## 📞 Soporte
 
-Sistema desarrollado con Emergent.sh
+Boltrex — punto de venta e inventario. Documentación técnica en `memorias_claude/`.
 
 ---
 
-**Versión**: 1.0.0  
+**Versión**: 1.0.0
 **Última actualización**: Enero 2025

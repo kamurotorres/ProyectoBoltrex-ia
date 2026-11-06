@@ -1,38 +1,27 @@
 # Stage 1: build
-# Forzamos la plataforma a linux/amd64 para asegurar compatibilidad
-FROM --platform=linux/amd64 node:18-alpine AS build
+# P2.25: sin --platform forzado → imagen nativa (arm64 en tu Mac, amd64 en el VPS).
+FROM node:18-alpine AS build
 WORKDIR /app
 
-# Copiar archivos de dependencias
-#antes COPY frontend/package.json frontend/package-lock.json* frontend/yarn.lock* /app/
-
-# Instalar dependencias y construir
-#antes COPY frontend/ /app/
-#antes RUN npm install --legacy-peer-deps
-#antes RUN npm run build
-
-# 1. Copiar SOLO archivos de dependencias
+# 1. Solo los archivos de dependencias (node_modules del host queda fuera por .dockerignore)
 COPY frontend/package.json ./
-#COPY frontend/package.json frontend/package-lock.json* ./
 
-# 2. Instalar (npm install creará los node_modules correctos para Linux)
-RUN npm cache clean --force
+# 2. Instalar
 RUN npm install --legacy-peer-deps
-# --- SOLUCIÓN ESPECÍFICA PARA AJV ---
-# Forzamos la instalación de ajv y sus keywords que CRACO está buscando
+# CRACO necesita ajv/ajv-keywords en una versión compatible
 RUN npm install ajv ajv-keywords --legacy-peer-deps
 
-# 3. AHORA copiar el resto del código (excluyendo lo del .dockerignore)
+# 3. Resto del código
 COPY frontend/ ./
 
 # 4. Construir
 RUN npm run build
 
 # Stage 2: nginx serve
-# También forzamos la plataforma aquí
-FROM --platform=linux/amd64 nginx:1.25-alpine
-# Copiamos desde la etapa de build a la carpeta de nginx
+FROM nginx:1.25-alpine
 COPY --from=build /app/build /usr/share/nginx/html
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# Carpeta para fragmentos opcionales (producción monta aquí realip.conf)
+RUN mkdir -p /etc/nginx/snippets
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

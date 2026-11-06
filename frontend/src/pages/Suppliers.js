@@ -22,12 +22,15 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const Suppliers = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [suppliers, setSuppliers] = useState([]);
-  const [search, setSearch] = useState('');
+  // P1.18: proveedores paginados y buscados en el servidor.
+  const list = usePaginatedList(`${API}/suppliers`, { errorMessage: 'Error al cargar proveedores' });
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -46,14 +49,8 @@ const Suppliers = () => {
   }, []);
 
   const fetchSuppliers = async () => {
-    try {
-      const response = await axios.get(`${API}/suppliers`);
-      setSuppliers(response.data);
-    } catch (error) {
-      toast.error('Error al cargar proveedores');
-    } finally {
-      setLoading(false);
-    }
+    await list.reload();
+    setLoading(false);
   };
 
   const handleSubmit = async (e) => {
@@ -72,7 +69,7 @@ const Suppliers = () => {
       fetchSuppliers();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar proveedor');
+      toast.error(getErrorMessage(error, 'Error al guardar proveedor'));
     } finally {
       setIsSubmitting(false);
     }
@@ -111,14 +108,11 @@ const Suppliers = () => {
       toast.success('Proveedor eliminado');
       fetchSuppliers();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar proveedor');
+      toast.error(getErrorMessage(error, 'Error al eliminar proveedor'));
     }
   };
 
-  const filteredSuppliers = suppliers.filter(s =>
-    search === '' ||
-    s.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredSuppliers = list.items;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -220,8 +214,8 @@ const Suppliers = () => {
           <Input
             type="text"
             placeholder="Buscar proveedores..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
             className="pl-10"
             data-testid="search-suppliers-input"
           />
@@ -278,11 +272,12 @@ const Suppliers = () => {
         </Table>
       </div>
 
-      {filteredSuppliers.length === 0 && (
+      {filteredSuppliers.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-suppliers">
           No se encontraron proveedores
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="proveedor(es)" testId="suppliers-pagination" />
     </div>
   );
 };

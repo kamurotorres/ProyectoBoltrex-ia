@@ -1,0 +1,19 @@
+# Boltrex — DESARROLLO en tu Mac. Docker Compose lo añade solo a docker-compose.yml
+# (`docker compose up -d --build`). En producción NO se usa (ver docker-compose.prod.yml).
+#
+# 27017 y 8000 solo en 127.0.0.1: accesibles desde tu Mac (scripts, Swagger en
+# http://localhost:8000/docs) pero no desde la red. La app se usa por http://localhost:3000
+# (o http://<ip-del-mac>:3000 desde otro equipo de la red).
+
+services:
+  mongo:
+    ports:
+      - "127.0.0.1:27017:27017"
+
+  backend:
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    ports:
+      - "3000:80"

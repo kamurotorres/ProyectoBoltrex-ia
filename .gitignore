@@ -160,3 +160,14 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Boltrex (P2.25)
+# Plantillas de variables SÍ se versionan (las reglas *.env.* de arriba las tapaban)
+!.env.example
+!*.env.example
+!backend/.env.example
+# Respaldos de la base de datos y credenciales de rclone (Google Drive)
+backups/
+deploy/backup/rclone/*
+!deploy/backup/rclone/.gitkeep
+

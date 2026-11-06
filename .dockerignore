@@ -1,4 +1,28 @@
-node_modules
-build
-.git
-.DS_Store
+# Boltrex (P2.25): lo que NO entra al contexto de construcción ni a las imágenes.
+# Los patrones con ** aplican en cualquier carpeta (antes solo excluían la raíz y se copiaban
+# frontend/node_modules del Mac y backend/.env con secretos).
+**/node_modules
+**/build
+**/.git
+**/.DS_Store
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# Secretos y entornos locales
+.env
+.env.*
+**/.env
+**/.env.*
+!**/.env.example
+backend/.venv
+
+# Datos, respaldos y credenciales de rclone
+backups
+deploy/backup/rclone
+
+# Documentación y pruebas (no se necesitan en las imágenes)
+memorias_claude
+tests
+test_reports
+*.md
