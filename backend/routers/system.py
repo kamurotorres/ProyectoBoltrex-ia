@@ -17,7 +17,7 @@ from models.auth import *
 from models.billing import *
 from models.inventory import *
 from models.entities import *
-import pandas as pd
+from core.importing import has, read_table   # CSV / .xlsx sin pandas (mantenimiento 1b)
 import io
 import csv
 from fastapi.responses import StreamingResponse
@@ -32,21 +32,6 @@ class ImportResult(BaseModel):
     errors: List[Dict[str, Any]]
     total: int
 
-def read_file(file: UploadFile) -> pd.DataFrame:
-    """Read CSV or Excel file and return DataFrame"""
-    try:
-        if file.filename.endswith('.csv'):
-            content = file.file.read()
-            df = pd.read_csv(io.BytesIO(content))
-        elif file.filename.endswith(('.xlsx', '.xls')):
-            content = file.file.read()
-            df = pd.read_excel(io.BytesIO(content))
-        else:
-            raise HTTPException(status_code=400, detail="Formato de archivo no soportado. Use CSV o Excel")
-        return df
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error al leer archivo: {str(e)}")
-
 async def _audit_import(kind: str, label: str, file, success: int, errors: list, total: int) -> None:
     await audit.record("import", "import", entity_id=kind, entity_name=getattr(file, "filename", None),
                        summary=f"Importó {label} desde '{getattr(file, 'filename', '')}': {success} de {total} fila(s) "
@@ -60,38 +45,42 @@ async def import_categories(file: UploadFile = File(...), current_user: User = D
     Importar categorías desde CSV o Excel
     Columnas requeridas: name, description
     """
-    df = read_file(file)
+    columns, rows = read_table(file)
 
     required_columns = ['name']
-    if not all(col in df.columns for col in required_columns):
+    if not all(col in columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
 
     success_count = 0
     errors = []
 
-    for index, row in df.iterrows():
+    for line, row in rows:
+        missing = [c for c in required_columns if not has(row.get(c))]
+        if missing:
+            errors.append({"row": line, "error": f"Falta el valor de: {', '.join(missing)}"})
+            continue
         try:
             # Check if category already exists
             existing = await db.categories.find_one({"name": str(row['name'])})
             if existing:
-                errors.append({"row": index + 2, "error": f"Categoría '{row['name']}' ya existe"})
+                errors.append({"row": line, "error": f"Categoría '{row['name']}' ya existe"})
                 continue
 
             category_data = {
                 "name": str(row['name']),
-                "description": str(row.get('description', '')) if pd.notna(row.get('description')) else '',
+                "description": str(row.get('description', '')) if has(row.get('description')) else '',
                 "created_at": now_utc()
             }
 
             await db.categories.insert_one(category_data)
             success_count += 1
         except DuplicateKeyError as e:
-            errors.append({"row": index + 2, "error": duplicate_key_message(e)})
+            errors.append({"row": line, "error": duplicate_key_message(e)})
         except Exception as e:
-            errors.append({"row": index + 2, "error": str(e)})
+            errors.append({"row": line, "error": str(e)})
 
-    await _audit_import("categories", "categorías", file, success_count, errors, len(df))
-    return ImportResult(success=success_count, errors=errors, total=len(df))
+    await _audit_import("categories", "categorías", file, success_count, errors, len(rows))
+    return ImportResult(success=success_count, errors=errors, total=len(rows))
 
 @router.post("/import/products", response_model=ImportResult)
 async def import_products(file: UploadFile = File(...), current_user: User = Depends(require_permission("import", "create"))):
@@ -101,15 +90,15 @@ async def import_products(file: UploadFile = File(...), current_user: User = Dep
     Columnas opcionales: description y una columna price_<lista> por cada lista de precios existente
     (IVA entre 0 y 100; cada precio > 0 y >= purchase_price; price_default obligatorio)
     """
-    df = read_file(file)
+    columns, rows = read_table(file)
 
     required_columns = ['barcode', 'name', 'category', 'purchase_price', 'tax_rate']
-    if not all(col in df.columns for col in required_columns):
+    if not all(col in columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
 
     # Columnas de precio dinámicas: una por lista parametrizada (no solo default/mayorista/minorista).
     catalog = await price_lists_catalog()
-    price_columns = [c for c in df.columns if str(c).startswith('price_')]
+    price_columns = [c for c in columns if str(c).startswith('price_')]
     unknown = [c for c in price_columns if c[len('price_'):] not in catalog]
     if unknown:
         raise HTTPException(
@@ -121,24 +110,28 @@ async def import_products(file: UploadFile = File(...), current_user: User = Dep
     success_count = 0
     errors = []
 
-    for index, row in df.iterrows():
+    for line, row in rows:
+        missing = [c for c in required_columns if not has(row.get(c))]
+        if missing:
+            errors.append({"row": line, "error": f"Falta el valor de: {', '.join(missing)}"})
+            continue
         try:
             # Check if product already exists
             existing = await db.products.find_one({"barcode": str(row['barcode'])})
             if existing:
-                errors.append({"row": index + 2, "error": f"Producto con código '{row['barcode']}' ya existe"})
+                errors.append({"row": line, "error": f"Producto con código '{row['barcode']}' ya existe"})
                 continue
 
             # Check if category exists
             category_exists = await db.categories.find_one({"name": str(row['category'])})
             if not category_exists:
-                errors.append({"row": index + 2, "error": f"Categoría '{row['category']}' no existe"})
+                errors.append({"row": line, "error": f"Categoría '{row['category']}' no existe"})
                 continue
 
             # Build prices array
             prices = []
             for price_col in price_columns:
-                if pd.notna(row.get(price_col)) and str(row.get(price_col)).strip() != '':
+                if has(row.get(price_col)) and str(row.get(price_col)).strip() != '':
                     price_list_name = price_col.replace('price_', '')
                     prices.append({
                         "price_list_name": price_list_name,
@@ -149,13 +142,13 @@ async def import_products(file: UploadFile = File(...), current_user: User = Dep
             problem = pricing_problem(row.get('purchase_price'), row.get('tax_rate'), prices) \
                 or price_lists_problem(prices, catalog)
             if problem:
-                errors.append({"row": index + 2, "error": problem})
+                errors.append({"row": line, "error": problem})
                 continue
 
             product_data = {
                 "barcode": str(row['barcode']),
                 "name": str(row['name']),
-                "description": str(row.get('description', '')) if pd.notna(row.get('description')) else '',
+                "description": str(row.get('description', '')) if has(row.get('description')) else '',
                 "category": str(row['category']),
                 "purchase_price": float(row['purchase_price']),
                 "tax_rate": float(row['tax_rate']),
@@ -167,12 +160,12 @@ async def import_products(file: UploadFile = File(...), current_user: User = Dep
             await db.products.insert_one(product_data)
             success_count += 1
         except DuplicateKeyError as e:
-            errors.append({"row": index + 2, "error": duplicate_key_message(e)})
+            errors.append({"row": line, "error": duplicate_key_message(e)})
         except Exception as e:
-            errors.append({"row": index + 2, "error": str(e)})
+            errors.append({"row": line, "error": str(e)})
 
-    await _audit_import("products", "productos", file, success_count, errors, len(df))
-    return ImportResult(success=success_count, errors=errors, total=len(df))
+    await _audit_import("products", "productos", file, success_count, errors, len(rows))
+    return ImportResult(success=success_count, errors=errors, total=len(rows))
 
 @router.post("/import/clients", response_model=ImportResult)
 async def import_clients(file: UploadFile = File(...), current_user: User = Depends(require_permission("import", "create"))):
@@ -181,16 +174,20 @@ async def import_clients(file: UploadFile = File(...), current_user: User = Depe
     Columnas requeridas: document_type, document_number, first_name, last_name
     Columnas opcionales: phone, email, address, latitude, longitude, price_list
     """
-    df = read_file(file)
+    columns, rows = read_table(file)
 
     required_columns = ['document_type', 'document_number', 'first_name', 'last_name']
-    if not all(col in df.columns for col in required_columns):
+    if not all(col in columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
 
     success_count = 0
     errors = []
 
-    for index, row in df.iterrows():
+    for line, row in rows:
+        missing = [c for c in required_columns if not has(row.get(c))]
+        if missing:
+            errors.append({"row": line, "error": f"Falta el valor de: {', '.join(missing)}"})
+            continue
         try:
             # Check if client already exists
             existing = await db.clients.find_one({
@@ -198,13 +195,13 @@ async def import_clients(file: UploadFile = File(...), current_user: User = Depe
                 "document_number": str(row['document_number'])
             })
             if existing:
-                errors.append({"row": index + 2, "error": f"Cliente con documento '{row['document_number']}' ya existe"})
+                errors.append({"row": line, "error": f"Cliente con documento '{row['document_number']}' ya existe"})
                 continue
 
             # Check if document type exists
             doc_type_exists = await db.document_types.find_one({"code": str(row['document_type'])})
             if not doc_type_exists:
-                errors.append({"row": index + 2, "error": f"Tipo de documento '{row['document_type']}' no existe"})
+                errors.append({"row": line, "error": f"Tipo de documento '{row['document_type']}' no existe"})
                 continue
 
             client_data = {
@@ -212,24 +209,24 @@ async def import_clients(file: UploadFile = File(...), current_user: User = Depe
                 "document_number": str(row['document_number']),
                 "first_name": str(row['first_name']),
                 "last_name": str(row['last_name']),
-                "phone": str(row.get('phone', '')) if pd.notna(row.get('phone')) else None,
-                "email": str(row.get('email', '')) if pd.notna(row.get('email')) else None,
-                "address": str(row.get('address', '')) if pd.notna(row.get('address')) else None,
-                "latitude": float(row['latitude']) if pd.notna(row.get('latitude')) else None,
-                "longitude": float(row['longitude']) if pd.notna(row.get('longitude')) else None,
-                "price_list": str(row.get('price_list', 'default')) if pd.notna(row.get('price_list')) else 'default',
+                "phone": str(row.get('phone', '')) if has(row.get('phone')) else None,
+                "email": str(row.get('email', '')) if has(row.get('email')) else None,
+                "address": str(row.get('address', '')) if has(row.get('address')) else None,
+                "latitude": float(row['latitude']) if has(row.get('latitude')) else None,
+                "longitude": float(row['longitude']) if has(row.get('longitude')) else None,
+                "price_list": str(row.get('price_list', 'default')) if has(row.get('price_list')) else 'default',
                 "created_at": now_utc()
             }
 
             await db.clients.insert_one(client_data)
             success_count += 1
         except DuplicateKeyError as e:
-            errors.append({"row": index + 2, "error": duplicate_key_message(e)})
+            errors.append({"row": line, "error": duplicate_key_message(e)})
         except Exception as e:
-            errors.append({"row": index + 2, "error": str(e)})
+            errors.append({"row": line, "error": str(e)})
 
-    await _audit_import("clients", "clientes", file, success_count, errors, len(df))
-    return ImportResult(success=success_count, errors=errors, total=len(df))
+    await _audit_import("clients", "clientes", file, success_count, errors, len(rows))
+    return ImportResult(success=success_count, errors=errors, total=len(rows))
 
 @router.post("/import/suppliers", response_model=ImportResult)
 async def import_suppliers(file: UploadFile = File(...), current_user: User = Depends(require_permission("import", "create"))):
@@ -238,35 +235,39 @@ async def import_suppliers(file: UploadFile = File(...), current_user: User = De
     Columnas requeridas: name
     Columnas opcionales: contact_name, phone, email, address
     """
-    df = read_file(file)
+    columns, rows = read_table(file)
 
     required_columns = ['name']
-    if not all(col in df.columns for col in required_columns):
+    if not all(col in columns for col in required_columns):
         raise HTTPException(status_code=400, detail=f"Columnas requeridas: {', '.join(required_columns)}")
 
     success_count = 0
     errors = []
 
-    for index, row in df.iterrows():
+    for line, row in rows:
+        missing = [c for c in required_columns if not has(row.get(c))]
+        if missing:
+            errors.append({"row": line, "error": f"Falta el valor de: {', '.join(missing)}"})
+            continue
         try:
             supplier_data = {
                 "name": str(row['name']),
-                "contact_name": str(row.get('contact_name', '')) if pd.notna(row.get('contact_name')) else None,
-                "phone": str(row.get('phone', '')) if pd.notna(row.get('phone')) else None,
-                "email": str(row.get('email', '')) if pd.notna(row.get('email')) else None,
-                "address": str(row.get('address', '')) if pd.notna(row.get('address')) else None,
+                "contact_name": str(row.get('contact_name', '')) if has(row.get('contact_name')) else None,
+                "phone": str(row.get('phone', '')) if has(row.get('phone')) else None,
+                "email": str(row.get('email', '')) if has(row.get('email')) else None,
+                "address": str(row.get('address', '')) if has(row.get('address')) else None,
                 "created_at": now_utc()
             }
 
             await db.suppliers.insert_one(supplier_data)
             success_count += 1
         except DuplicateKeyError as e:
-            errors.append({"row": index + 2, "error": duplicate_key_message(e)})
+            errors.append({"row": line, "error": duplicate_key_message(e)})
         except Exception as e:
-            errors.append({"row": index + 2, "error": str(e)})
+            errors.append({"row": line, "error": str(e)})
 
-    await _audit_import("suppliers", "proveedores", file, success_count, errors, len(df))
-    return ImportResult(success=success_count, errors=errors, total=len(df))
+    await _audit_import("suppliers", "proveedores", file, success_count, errors, len(rows))
+    return ImportResult(success=success_count, errors=errors, total=len(rows))
 
 @router.get("/import/templates/{module_name}")
 async def download_template(module_name: str, current_user: User = Depends(require_permission("import", "read"))):
