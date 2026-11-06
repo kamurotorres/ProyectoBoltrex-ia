@@ -21,6 +21,5 @@ bcrypt==4.1.3                 # hash de contraseñas (reemplaza a passlib)
 PyJWT==2.10.1                 # tokens de sesión (reemplaza a python-jose)
 
 # Reportes e importación
-openpyxl==3.1.5               # Excel (exportar y leer .xlsx)
+openpyxl==3.1.5               # Excel: exportar y leer .xlsx en Importar (sin pandas desde la fase 1b)
 reportlab==4.4.7              # PDF (tickets, reportes, estado de cuenta, cierre de caja)
-pandas==2.3.3                 # lectura de archivos en Importar

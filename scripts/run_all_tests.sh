@@ -19,6 +19,7 @@ PORT="${BOLTREX_TEST_PORT:-8001}"
 API="http://localhost:${PORT}/api"
 LOGDIR="${BOLTREX_TEST_LOGS:-$ROOT/.test-logs}"
 mkdir -p "$LOGDIR"
+rm -f "$LOGDIR"/*.log   # solo los logs de esta corrida
 
 if [[ -z "${MONGO_URL:-}" ]]; then
   # shellcheck disable=SC1091
@@ -29,7 +30,7 @@ export MONGO_URL="${MONGO_URL:-mongodb://localhost:27017/?directConnection=true}
 # Orden de la fase principal: factory_reset borra los datos de la BD → siempre de última.
 MAIN=(indexes counters transactions stock_concurrency returns security_rbac references user_protection
       password_change sales_report client_identity pricing pagination dates audit dashboard product_price_lists
-      cash credit adjustments alerts exports factory_reset)
+      cash credit adjustments alerts exports import factory_reset)
 if [[ $# -gt 0 ]]; then MAIN=("$@"); SPECIAL=0; else SPECIAL=1; fi
 
 declare -a RESULTS=()
