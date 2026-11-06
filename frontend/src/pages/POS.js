@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 import { API } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,14 +13,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, User, AlertCircle, Package, Loader2 } from 'lucide-react';
+import { Search, Minus, Plus, Trash2, ShoppingCart, CreditCard, Wallet, User, AlertCircle, AlertTriangle, Package, Loader2, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/lib/utils';
+import { notifyDataChanged } from '@/lib/events';
+
+// P2.30: fechas locales AAAA-MM-DD para el vencimiento de las ventas a crédito.
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (days) => { const d = new Date(); d.setDate(d.getDate() + Number(days || 0)); return ymd(d); };
+const dmy = (s) => (s ? s.split('-').reverse().join('/') : '');
+const money0 = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
 
 const POS = () => {
   const { canCreate } = usePermissions();
+  // P1.18: productos y clientes se buscan en el servidor mientras se escribe (sin tope oculto).
+  // `products` guarda los productos vistos (resultados y carrito) para recalcular el carrito.
   const [products, setProducts] = useState([]);
-  const [clients, setClients] = useState([]);
+  const [productResults, setProductResults] = useState([]);
+  const [clientResults, setClientResults] = useState([]);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [searchingClients, setSearchingClients] = useState(false);
+  const productReq = useRef(0);
+  const clientReq = useRef(0);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [searchProduct, setSearchProduct] = useState('');
   const [searchClient, setSearchClient] = useState('');
@@ -27,26 +43,54 @@ const POS = () => {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Payment fields
   const [paymentStatus, setPaymentStatus] = useState('pagado');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  // P2.30: estado de crédito del cliente (saldo, vencido, cupo) y vencimiento de la venta a crédito.
+  const [creditStatus, setCreditStatus] = useState(null);
+  const [dueDate, setDueDate] = useState('');
+  useEffect(() => {
+    setCreditStatus(null);
+    if (!selectedClient) return undefined;
+    let cancelled = false;
+    axios.get(`${API}/credit/client-status`, {
+      params: { document_number: selectedClient.document_number, document_type: selectedClient.document_type },
+    }).then((r) => {
+      if (cancelled) return;
+      setCreditStatus(r.data);
+      setDueDate(addDays(r.data.term_days));
+    }).catch(() => { if (!cancelled) setCreditStatus(null); });
+    return () => { cancelled = true; };
+  }, [selectedClient]);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  // P2.31: si la configuración exige caja abierta, el POS avisa y bloquea el cobro sin ella
+  // (el backend lo exige igual).
+  const [cashState, setCashState] = useState({ required: false, open: true });
+  const fetchCashState = async () => {
     try {
-      const [productsRes, clientsRes, paymentMethodsRes] = await Promise.all([
-        axios.get(`${API}/products`),
-        axios.get(`${API}/clients`),
+      const [settingsRes, currentRes] = await Promise.all([
+        axios.get(`${API}/cash/settings`),
+        axios.get(`${API}/cash/current`).catch(() => ({ data: { session: null } })),
+      ]);
+      setCashState({ required: !!settingsRes.data.require_open_session, open: !!currentRes.data.session });
+    } catch {
+      setCashState({ required: false, open: true });
+    }
+  };
+
+  const fetchData = async () => {
+    fetchCashState();
+    try {
+      const [paymentMethodsRes] = await Promise.all([
         axios.get(`${API}/payment-methods/active`)
       ]);
-      setProducts(productsRes.data);
-      setClients(clientsRes.data);
       setPaymentMethods(paymentMethodsRes.data);
-      
+
       if (paymentMethodsRes.data.length > 0) {
         setSelectedPaymentMethod(paymentMethodsRes.data[0].name);
       }
@@ -57,15 +101,13 @@ const POS = () => {
     }
   };
 
+  // P1.17: precio de la lista del cliente; si el producto no la tiene, el de 'default'.
+  // Sin ninguno de los dos el producto no se puede vender (antes se inventaba costo × 1,3).
   const getProductPrice = (product) => {
-    let unitPrice = product.purchase_price * 1.3;
-    if (selectedClient && product.prices && product.prices.length > 0) {
-      const clientPriceList = product.prices.find(p => p.price_list_name === selectedClient.price_list);
-      if (clientPriceList) {
-        unitPrice = clientPriceList.price;
-      }
-    }
-    return unitPrice;
+    const prices = product.prices || [];
+    const pick = (name) => prices.find((p) => p.price_list_name === name);
+    const found = (selectedClient && pick(selectedClient.price_list)) || pick('default');
+    return found ? found.price : null;
   };
 
   const addToCart = (product) => {
@@ -73,27 +115,31 @@ const POS = () => {
       toast.error('Primero selecciona un cliente');
       return;
     }
-    
+    if (getProductPrice(product) === null) {
+      toast.error(`El producto '${product.name}' no tiene precio de venta. Agrégale un precio en Productos.`);
+      return;
+    }
+
     if (product.stock <= 0) {
       toast.error('Producto sin stock');
       return;
     }
 
     const existingItemIndex = cart.findIndex(item => item.barcode === product.barcode);
-    
+
     if (existingItemIndex !== -1) {
       const existingItem = cart[existingItemIndex];
       const newQuantity = existingItem.quantity + 1;
-      
+
       if (newQuantity > product.stock) {
         toast.error('Stock insuficiente');
         return;
       }
-      
+
       const subtotal = existingItem.unit_price * newQuantity;
       const taxAmount = (subtotal * existingItem.tax_rate) / 100;
       const total = subtotal + taxAmount;
-      
+
       setCart(cart.map((item, index) =>
         index === existingItemIndex
           ? { ...item, quantity: newQuantity, subtotal, tax_amount: taxAmount, total }
@@ -116,7 +162,7 @@ const POS = () => {
         total
       }]);
     }
-    
+
     // Clear search after adding
     setSearchProduct('');
   };
@@ -175,7 +221,7 @@ const POS = () => {
       const response = await axios.get(`${API}/pos/invoices/${invoiceNumber}/ticket`, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -200,7 +246,7 @@ const POS = () => {
       toast.error('El carrito está vacío');
       return;
     }
-    
+
     if (paymentStatus === 'pagado' && !selectedPaymentMethod) {
       toast.error('Selecciona una forma de pago');
       return;
@@ -210,17 +256,21 @@ const POS = () => {
     try {
       const invoiceData = {
         client_document: selectedClient.document_number,
+        client_document_type: selectedClient.document_type,   // P1.15
         items: cart,
         payment_status: paymentStatus,
-        payment_method: paymentStatus === 'pagado' ? selectedPaymentMethod : null
+        payment_method: paymentStatus === 'pagado' ? selectedPaymentMethod : null,
+        // P2.30: vencimiento elegido (vacío = plazo del cliente o el de Config. Sistema).
+        due_date: paymentStatus === 'por_cobrar' ? (dueDate || null) : null,
+        tz_offset_minutes: new Date().getTimezoneOffset()
       };
-      
+
       const response = await axios.post(`${API}/invoices`, invoiceData);
-      
-      const statusMessage = paymentStatus === 'pagado' 
+
+      const statusMessage = paymentStatus === 'pagado'
         ? `Factura ${response.data.invoice_number} creada - PAGADA con ${selectedPaymentMethod}`
-        : `Factura ${response.data.invoice_number} creada - POR COBRAR`;
-      
+        : `Factura ${response.data.invoice_number} creada - POR COBRAR${response.data.due_date ? ` · vence el ${new Date(response.data.due_date).toLocaleDateString('es-CO')}` : ''}`;
+
       toast.success(statusMessage, {
         action: paymentStatus === 'pagado' ? {
           label: 'Descargar Ticket',
@@ -228,36 +278,45 @@ const POS = () => {
         } : undefined,
         duration: 5000
       });
-      
+
       if (paymentStatus === 'pagado') {
         setTimeout(() => downloadTicket(response.data.invoice_number), 500);
       }
-      
+      // P2.34: lo que quedó en bajo stock o agotado con esta venta.
+      const warnings = response.data.stock_warnings || [];
+      if (warnings.length) {
+        const text = warnings.slice(0, 4).map((w) => (w.status === 'out'
+          ? `${w.name}: AGOTADO`
+          : `${w.name} quedó con ${w.stock} unidad(es) (mínimo ${w.min_stock})`)).join(' · ');
+        toast.warning(`Stock bajo: ${text}${warnings.length > 4 ? ` y ${warnings.length - 4} más` : ''}`, { duration: 8000 });
+      }
+      notifyDataChanged();
+
       setCart([]);
       setSelectedClient(null);
       setSearchClient('');
       setSearchProduct('');
       setPaymentStatus('pagado');
+      setDueDate('');
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al crear factura');
+      toast.error(getErrorMessage(error, 'Error al crear factura'));
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleClientChange = (client) => {
-    if (cart.length > 0 && selectedClient && selectedClient.document_number !== client.document_number) {
+    // P1.15: el cliente es tipo + número. P1.17: precio de su lista o el 'default'.
+    const sameClient = selectedClient && selectedClient.document_number === client.document_number
+      && selectedClient.document_type === client.document_type;
+    if (cart.length > 0 && selectedClient && !sameClient) {
       const updatedCart = cart.map(item => {
         const product = products.find(p => p.barcode === item.barcode);
         if (product) {
-          let unitPrice = product.purchase_price * 1.3;
-          if (client && product.prices && product.prices.length > 0) {
-            const clientPriceList = product.prices.find(p => p.price_list_name === client.price_list);
-            if (clientPriceList) {
-              unitPrice = clientPriceList.price;
-            }
-          }
+          const prices = product.prices || [];
+          const found = prices.find(p => p.price_list_name === client.price_list) || prices.find(p => p.price_list_name === 'default');
+          const unitPrice = found ? found.price : item.unit_price;
           const subtotal = unitPrice * item.quantity;
           const taxAmount = (subtotal * item.tax_rate) / 100;
           const total = subtotal + taxAmount;
@@ -271,22 +330,60 @@ const POS = () => {
     setSearchClient('');
   };
 
-  // Only show products when user is searching
-  const filteredProducts = searchProduct.length >= 2
-    ? products.filter(p =>
-        p.barcode.toLowerCase().includes(searchProduct.toLowerCase()) ||
-        p.name.toLowerCase().includes(searchProduct.toLowerCase())
-      ).slice(0, 10)
-    : [];
+  // Búsqueda de productos en el servidor (desde 2 caracteres, 300 ms tras dejar de escribir).
+  useEffect(() => {
+    const text = searchProduct.trim();
+    if (text.length < 2) {
+      setProductResults([]);
+      return undefined;
+    }
+    const id = ++productReq.current;
+    setSearchingProducts(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API}/products`, { params: { search: text, page_size: 20 } });
+        if (id !== productReq.current) return;
+        const found = res.data.items || [];
+        setProductResults(found);
+        // Se guardan para recalcular precios del carrito (cambio de cliente, cantidades).
+        setProducts((prev) => {
+          const map = new Map(prev.map((p) => [p.barcode, p]));
+          found.forEach((p) => map.set(p.barcode, p));
+          return Array.from(map.values());
+        });
+      } catch (error) {
+        if (id === productReq.current) toast.error(getErrorMessage(error, 'Error al buscar productos'));
+      } finally {
+        if (id === productReq.current) setSearchingProducts(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchProduct]);
 
-  // Only show clients when user is searching (min 2 characters)
-  const filteredClients = searchClient.length >= 2
-    ? clients.filter(c =>
-        c.document_number.toLowerCase().includes(searchClient.toLowerCase()) ||
-        c.first_name.toLowerCase().includes(searchClient.toLowerCase()) ||
-        c.last_name.toLowerCase().includes(searchClient.toLowerCase())
-      ).slice(0, 10)
-    : [];
+  // Búsqueda de clientes en el servidor.
+  useEffect(() => {
+    const text = searchClient.trim();
+    if (text.length < 2) {
+      setClientResults([]);
+      return undefined;
+    }
+    const id = ++clientReq.current;
+    setSearchingClients(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API}/clients`, { params: { search: text, page_size: 20 } });
+        if (id === clientReq.current) setClientResults(res.data.items || []);
+      } catch (error) {
+        if (id === clientReq.current) toast.error(getErrorMessage(error, 'Error al buscar clientes'));
+      } finally {
+        if (id === clientReq.current) setSearchingClients(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchClient]);
+
+  const filteredProducts = searchProduct.trim().length >= 2 ? productResults : [];
+  const filteredClients = searchClient.trim().length >= 2 ? clientResults : [];
 
   const totals = calculateTotals();
 
@@ -298,6 +395,13 @@ const POS = () => {
         <h1 className="text-4xl font-bold tracking-tight">Punto de Venta (POS)</h1>
         <p className="text-muted-foreground mt-2">Sistema de facturación rápida</p>
       </div>
+
+      {cashState.required && !cashState.open && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm" role="alert" data-testid="pos-cash-required">
+          <span><span className="font-semibold">Abre tu caja antes de vender.</span> La configuración del sistema exige una caja abierta.</span>
+          <Link to="/cash" className="underline underline-offset-2">Ir a Caja</Link>
+        </div>
+      )}
 
       {/* SECTION 1: Client Selection - Full Width */}
       <Card className={`w-full ${!selectedClient ? 'border-orange-500/50 bg-orange-500/5' : 'border-green-500/50 bg-green-500/5'}`}>
@@ -321,6 +425,15 @@ const POS = () => {
                   {selectedClient.price_list && (
                     <p className="text-xs text-green-400">Lista de precios: {selectedClient.price_list}</p>
                   )}
+                  {creditStatus && creditStatus.balance > 0 && (
+                    <p className="text-xs text-muted-foreground" data-testid="pos-client-balance">
+                      Debe {money0(creditStatus.balance)} en Fios
+                      {creditStatus.credit_limit ? ` · cupo disponible ${money0(creditStatus.available)} de ${money0(creditStatus.credit_limit)}` : ''}
+                    </p>
+                  )}
+                  {creditStatus && !creditStatus.balance && creditStatus.credit_limit && (
+                    <p className="text-xs text-muted-foreground">Cupo de crédito {money0(creditStatus.credit_limit)}</p>
+                  )}
                 </div>
               </div>
               <Button
@@ -339,7 +452,7 @@ const POS = () => {
                 <AlertCircle className="h-5 w-5 text-orange-400" />
                 <p className="text-sm text-orange-400">Busca y selecciona un cliente para continuar con la venta</p>
               </div>
-              
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -390,7 +503,7 @@ const POS = () => {
                   ) : (
                     <div className="p-8 text-center text-muted-foreground">
                       <User className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>No se encontraron clientes para "{searchClient}"</p>
+                      <p>{searchingClients ? 'Buscando…' : `No se encontraron clientes para "${searchClient}"`}</p>
                     </div>
                   )}
                 </div>
@@ -401,6 +514,16 @@ const POS = () => {
                   Escribe al menos 2 caracteres para buscar clientes
                 </p>
               )}
+            </div>
+          )}
+          {/* P2.30 (opción A): con facturas vencidas solo se avisa; la venta se permite. */}
+          {selectedClient && creditStatus && creditStatus.overdue_balance > 0 && (
+            <div className="mt-3 p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-sm text-red-400 flex items-start gap-2" data-testid="pos-overdue-warning">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>
+                Este cliente tiene <strong>{money0(creditStatus.overdue_balance)}</strong> vencidos en {creditStatus.overdue_invoices} factura(s)
+                (la más atrasada: {creditStatus.max_days_overdue} día(s)). Puedes venderle, pero conviene cobrarle antes de fiarle más.
+              </span>
             </div>
           )}
         </CardContent>
@@ -436,7 +559,7 @@ const POS = () => {
                   {filteredProducts.map((product, index) => {
                     const price = getProductPrice(product);
                     const inCart = cart.find(item => item.barcode === product.barcode);
-                    
+
                     return (
                       <div
                         key={product.barcode}
@@ -451,9 +574,13 @@ const POS = () => {
                           <p className="text-sm text-muted-foreground font-mono">{product.barcode}</p>
                         </div>
                         <div className="text-right mr-4">
-                          <p className="font-bold text-lg font-mono text-primary">
-                            ${price.toLocaleString()}
-                          </p>
+                          {price === null ? (
+                            <p className="text-sm font-semibold text-red-500">Sin precio de venta</p>
+                          ) : (
+                            <p className="font-bold text-lg font-mono text-primary">
+                              ${price.toLocaleString()}
+                            </p>
+                          )}
                           <p className={`text-xs ${product.stock > 0 ? 'text-muted-foreground' : 'text-red-500'}`}>
                             Stock: {product.stock}
                           </p>
@@ -474,7 +601,7 @@ const POS = () => {
               ) : (
                 <div className="p-8 text-center text-muted-foreground">
                   <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No se encontraron productos para "{searchProduct}"</p>
+                  <p>{searchingProducts ? 'Buscando…' : `No se encontraron productos para "${searchProduct}"`}</p>
                 </div>
               )}
             </div>
@@ -658,11 +785,31 @@ const POS = () => {
                   )}
 
                   {paymentStatus === 'por_cobrar' && (
-                    <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+                    <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-lg space-y-3">
                       <p className="text-sm text-orange-400">
                         <Wallet className="h-4 w-4 inline mr-2" />
                         La factura se registrará como crédito y aparecerá en el módulo de Fios.
                       </p>
+                      <div className="space-y-1">
+                        <Label htmlFor="pos-due-date" className="flex items-center gap-2 text-sm">
+                          <CalendarClock className="h-4 w-4" /> Fecha de vencimiento
+                        </Label>
+                        <Input id="pos-due-date" type="date" min={ymd(new Date())} value={dueDate}
+                               onChange={(e) => setDueDate(e.target.value)} className="max-w-[12rem]" data-testid="pos-due-date-input" />
+                        <p className="text-xs text-muted-foreground">
+                          {creditStatus
+                            ? `Plazo ${creditStatus.term_days === creditStatus.default_term_days ? 'por defecto' : 'del cliente'}: ${creditStatus.term_days} día(s)`
+                              + (dueDate ? ` · vence el ${dmy(dueDate)}` : '')
+                            : 'Vacío: se usa el plazo del cliente o el de Config. Sistema.'}
+                        </p>
+                      </div>
+                      {creditStatus && creditStatus.credit_limit && totals.total > (creditStatus.available || 0) + 0.005 && (
+                        <p className="text-sm text-red-400" data-testid="pos-credit-limit-warning">
+                          <AlertTriangle className="h-4 w-4 inline mr-2" />
+                          Esta venta ({money0(totals.total)}) supera el cupo disponible del cliente ({money0(Math.max(0, creditStatus.available))}).
+                          No se puede fiar: cóbrala de contado o pide a un administrador que amplíe el cupo.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -689,13 +836,15 @@ const POS = () => {
                       </span>
                     </div>
                   </div>
-                  
+
                   <Button
                     className="w-full h-14 text-lg mt-4 font-semibold shadow-md"
                     size="lg"
                     onClick={handleCheckout}
-                    disabled={isProcessing || cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod) || !canCreate('pos')}
+                    disabled={isProcessing || cart.length === 0 || !selectedClient || (paymentStatus === 'pagado' && !selectedPaymentMethod) || !canCreate('pos') || (cashState.required && !cashState.open)
+                      || (paymentStatus === 'por_cobrar' && creditStatus && creditStatus.credit_limit && totals.total > (creditStatus.available || 0) + 0.005)}
                     data-testid="checkout-button"
+                    title={!canCreate('pos') ? 'Tu rol no tiene permiso para registrar ventas' : undefined}
                   >
                     {isProcessing ? (
                       <>
@@ -714,6 +863,11 @@ const POS = () => {
                       </>
                     )}
                   </Button>
+                  {!canCreate('pos') && (
+                    <p className="text-xs text-center text-muted-foreground mt-2" data-testid="pos-no-permission">
+                      Tu rol no tiene permiso para registrar ventas. Pídeselo a un administrador.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

@@ -1,0 +1,21 @@
+# Boltrex (P2.25): HTTPS automático con Let's Encrypt para {$DOMAIN} (p. ej. boltrex.online).
+# Caddy pide y renueva el certificado solo; lo que llega por HTTP se redirige a HTTPS.
+# Requisito: el registro DNS tipo A del dominio debe apuntar a la IP del VPS y los puertos
+# 80 y 443 deben estar abiertos. Con DOMAIN=localhost usa un certificado local (pruebas).
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# El navegador solo volverá a usar HTTPS para este dominio durante un año.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Caddy NO confía en X-Forwarded-For enviado por el cliente: lo reemplaza por la IP real,
+	# así nadie puede falsearla para saltarse el límite de intentos de login.
+	reverse_proxy frontend:80
+}

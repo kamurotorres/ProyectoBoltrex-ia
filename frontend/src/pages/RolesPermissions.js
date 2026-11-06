@@ -17,11 +17,15 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Shield, Settings, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+
+// El rol Administrador siempre tiene acceso total; el backend rechaza cualquier cambio a sus permisos.
+const ADMIN_ROLE = 'Administrador';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const RolesPermissions = () => {
-  const { canCreate: canCreateRole, canUpdate: canUpdatePerm } = usePermissions();
+  const { canCreate: canCreateRole, canUpdate: canUpdatePerm, canAny } = usePermissions();
   const [roles, setRoles] = useState([]);
   const [modules, setModules] = useState([]);
   const [permissions, setPermissions] = useState({});
@@ -45,7 +49,7 @@ const RolesPermissions = () => {
       ]);
       setRoles(rolesRes.data);
       setModules(modulesRes.data);
-      
+
       const permsMap = {};
       for (const role of rolesRes.data) {
         const permsRes = await axios.get(`${API}/rbac/permissions/${role.name}`);
@@ -56,7 +60,7 @@ const RolesPermissions = () => {
       }
       setPermissions(permsMap);
     } catch (error) {
-      toast.error('Error al cargar datos');
+      toast.error(getErrorMessage(error, 'Error al cargar datos'));
     } finally {
       setLoading(false);
     }
@@ -71,7 +75,7 @@ const RolesPermissions = () => {
       setDialogOpen(false);
       setFormData({ name: '', description: '', is_active: true });
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al crear rol');
+      toast.error(getErrorMessage(error, 'Error al crear rol'));
     }
   };
 
@@ -105,7 +109,7 @@ const RolesPermissions = () => {
 
       toast.success('Permiso actualizado');
     } catch (error) {
-      toast.error('Error al actualizar permiso');
+      toast.error(getErrorMessage(error, 'Error al actualizar permiso'));
     }
   };
 
@@ -169,12 +173,13 @@ const RolesPermissions = () => {
                                 <button
                                   key={perm}
                                   onClick={() => handleTogglePermission(role.name, module.slug, perm)}
-                                  disabled={!role.is_active || !module.is_active || !canUpdatePerm('permissions')}
+                                  disabled={role.name === ADMIN_ROLE || !role.is_active || !module.is_active || !canUpdatePerm('permissions')}
+                                  title={role.name === ADMIN_ROLE ? 'El rol Administrador siempre tiene acceso total y no se puede modificar' : undefined}
                                   className={`flex items-center justify-between px-2 py-1 text-xs rounded transition-colors ${
                                     hasPermission(role.name, module.slug, perm)
                                       ? 'bg-chart-1/20 text-chart-1'
                                       : 'bg-muted text-muted-foreground'
-                                  } ${role.is_active && module.is_active && canUpdatePerm('permissions') ? 'hover:opacity-80 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                                  } ${role.name !== ADMIN_ROLE && role.is_active && module.is_active && canUpdatePerm('permissions') ? 'hover:opacity-80 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
                                 >
                                   <span className="capitalize">{perm}</span>
                                   {hasPermission(role.name, module.slug, perm) ? (
@@ -199,7 +204,8 @@ const RolesPermissions = () => {
         <TabsContent value="roles" className="space-y-4">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold">Roles del Sistema</h2>
-            {canCreateRole('permissions') && (
+            {/* El backend acepta crear roles con el permiso de Permisos o de Roles. */}
+            {canAny(['permissions', 'create'], ['roles', 'create']) && (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>

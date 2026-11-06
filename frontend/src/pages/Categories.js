@@ -15,12 +15,15 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 
 const Categories = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [categories, setCategories] = useState([]);
-  const [search, setSearch] = useState('');
+  // P1.18: paginadas y buscadas en el servidor (paginated=true; sin él, la lista completa para selectores).
+  const list = usePaginatedList(`${API}/categories`, { params: { paginated: true }, errorMessage: 'Error al cargar categorías' });
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -33,14 +36,8 @@ const Categories = () => {
   }, []);
 
   const fetchCategories = async () => {
-    try {
-      const response = await axios.get(`${API}/categories`);
-      setCategories(response.data);
-    } catch (error) {
-      toast.error('Error al cargar categorías');
-    } finally {
-      setLoading(false);
-    }
+    await list.reload();
+    setLoading(false);
   };
 
   const handleSubmit = async (e) => {
@@ -59,7 +56,7 @@ const Categories = () => {
       fetchCategories();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar categoría');
+      toast.error(getErrorMessage(error, 'Error al guardar categoría'));
     } finally {
       setIsSubmitting(false);
     }
@@ -72,7 +69,7 @@ const Categories = () => {
       toast.success('Categoría eliminada');
       fetchCategories();
     } catch (error) {
-      toast.error('Error al eliminar categoría');
+      toast.error(getErrorMessage(error, 'Error al eliminar categoría'));
     }
   };
 
@@ -96,9 +93,7 @@ const Categories = () => {
     setFormData({ name: '', description: '' });
   };
 
-  const filteredCategories = categories.filter(cat =>
-    cat.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredCategories = list.items;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -173,8 +168,8 @@ const Categories = () => {
           <Input
             type="text"
             placeholder="Buscar categorías..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
             className="pl-10"
             data-testid="search-categories-input"
           />
@@ -218,11 +213,12 @@ const Categories = () => {
         ))}
       </div>
 
-      {filteredCategories.length === 0 && (
+      {filteredCategories.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-categories">
           No se encontraron categorías
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="categoría(s)" testId="categories-pagination" />
     </div>
   );
 };

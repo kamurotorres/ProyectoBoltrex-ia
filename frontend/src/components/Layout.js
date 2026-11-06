@@ -1,6 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '@/App';
+import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 import {
   LayoutDashboard,
   Package,
@@ -16,20 +18,35 @@ import {
   UserCog,
   Shield,
   LogOut,
+  KeyRound,
+  ScrollText,
+  Banknote,
   Receipt,
   Settings,
   CreditCard,
   Wallet,
   DollarSign,
+  SlidersHorizontal,
   Menu,
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { allowedSections, findSection, isReadOnly } from '@/lib/access';
+import BoltrexLogo from '@/components/BoltrexLogo';
+import AlertsBell from '@/components/AlertsBell';
+
+const ICONS = {
+  LayoutDashboard, Package, FolderOpen, Users, Truck, ShoppingBag, RotateCcw, ShoppingCart, Receipt,
+  Wallet, Warehouse, FileText, Upload, CreditCard, DollarSign, UserCog, Shield, Settings, ScrollText, Banknote,
+  SlidersHorizontal,
+};
 
 const Layout = () => {
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, logoutAll } = useContext(AuthContext);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const readOnly = isReadOnly(user, findSection(location.pathname));
 
   const handleLogout = () => {
     setSidebarOpen(false);
@@ -37,34 +54,23 @@ const Layout = () => {
     navigate('/login');
   };
 
-  const allNavItems = [
-    { path: '/', icon: LayoutDashboard, label: 'Dashboard', moduleSlug: 'dashboard' },
-    { path: '/products', icon: Package, label: 'Productos', moduleSlug: 'products' },
-    { path: '/categories', icon: FolderOpen, label: 'Categorías', moduleSlug: 'categories' },
-    { path: '/clients', icon: Users, label: 'Clientes', moduleSlug: 'clients' },
-    { path: '/suppliers', icon: Truck, label: 'Proveedores', moduleSlug: 'suppliers' },
-    { path: '/purchases', icon: ShoppingBag, label: 'Compras', moduleSlug: 'purchases' },
-    { path: '/returns', icon: RotateCcw, label: 'Devoluciones', moduleSlug: 'returns' },
-    { path: '/pos', icon: ShoppingCart, label: 'POS', moduleSlug: 'pos' },
-    { path: '/invoices', icon: Receipt, label: 'Facturas', moduleSlug: 'invoices' },
-    { path: '/fios', icon: Wallet, label: 'Fios (Créditos)', moduleSlug: 'fios' },
-    { path: '/inventory', icon: Warehouse, label: 'Inventario', moduleSlug: 'inventory' },
-    { path: '/reports', icon: FileText, label: 'Reportes', moduleSlug: 'reports' },
-    { path: '/import', icon: Upload, label: 'Importar', moduleSlug: 'import' },
-    { path: '/payment-methods', icon: CreditCard, label: 'Formas de Pago', moduleSlug: 'payment-methods' },
-    { path: '/price-lists', icon: DollarSign, label: 'Listas de Precios', moduleSlug: 'price-lists' },
-    { path: '/users', icon: UserCog, label: 'Usuarios', moduleSlug: 'users' },
-    { path: '/roles', icon: Shield, label: 'Roles y Permisos', moduleSlug: 'permissions' },
-    { path: '/ticket-config', icon: Settings, label: 'Config. Tickets', moduleSlug: 'ticket-config' },
-    { path: '/settings', icon: Settings, label: 'Config. Sistema', moduleSlug: 'permissions' }
-  ];
+  // Cierra la sesión en todos los equipos (útil si se perdió un equipo o se usó uno ajeno).
+  const handleLogoutAll = async () => {
+    if (!window.confirm('¿Cerrar tu sesión en TODOS los equipos, incluido este? Tendrás que volver a iniciar sesión.')) return;
+    setSidebarOpen(false);
+    try {
+      await logoutAll();
+      navigate('/login');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'No se pudo cerrar la sesión en todos los equipos'));
+    }
+  };
 
-  // Filter nav items based on user permissions
-  const navItems = allNavItems.filter(item => {
-    if (!user || !user.permissions) return false;
-    const modulePermissions = user.permissions[item.moduleSlug];
-    return modulePermissions && modulePermissions.read === true;
-  });
+  // Menú = secciones que el usuario puede ver, del mapa único lib/access.js (P1.13).
+  const navItems = allowedSections(user).map((section) => ({
+    ...section,
+    icon: ICONS[section.icon] || Settings,
+  }));
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -91,12 +97,15 @@ const Layout = () => {
             <span className="text-xs sm:text-sm font-semibold">Menú</span>
           </Button>
           <div className="flex items-center gap-2">
+            <BoltrexLogo size={24} />
             <span className="font-bold text-lg tracking-tight">Boltrex</span>
-            <span className="text-xs text-muted-foreground hidden sm:inline">| POS & Gestión</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">| POS e inventario</span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* P2.34: alertas de stock y créditos */}
+          {user && <AlertsBell user={user} />}
           <span className="text-xs text-muted-foreground hidden md:inline font-mono">{user?.email}</span>
         </div>
       </header>
@@ -109,11 +118,14 @@ const Layout = () => {
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-border flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-2">
+            <BoltrexLogo size={28} />
+            <div>
             <h1 className="text-xl font-bold tracking-tight" data-testid="app-title">
               Boltrex
             </h1>
-            <p className="text-xs text-muted-foreground">Inventory & POS</p>
+            <p className="text-xs text-muted-foreground">Inventario y POS</p>
+            </div>
           </div>
           <Button
             variant="ghost"
@@ -136,7 +148,27 @@ const Layout = () => {
               <p className="text-[10px] text-muted-foreground capitalize truncate">
                 {user?.roles && user.roles.length > 0 ? user.roles.join(', ') : (user?.role || 'Usuario')}
               </p>
+              <button
+                type="button"
+                onClick={handleLogoutAll}
+                className="text-[10px] text-muted-foreground hover:text-destructive hover:underline"
+                data-testid="logout-all-button"
+                title="Cerrar la sesión en todos los equipos donde hayas entrado"
+              >
+                Cerrar sesión en todos los equipos
+              </button>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setSidebarOpen(false); navigate('/change-password'); }}
+              className="h-8 px-2 text-xs flex items-center gap-1 shrink-0"
+              data-testid="change-password-button"
+              title="Cambiar mi contraseña"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              <span>Contraseña</span>
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -173,6 +205,12 @@ const Layout = () => {
 
       {/* Main Content Area - Full width */}
       <main className="flex-1 p-4 md:p-8 overflow-x-hidden">
+        {/* P1.13: el rol puede ver esta sección pero no crear, editar ni eliminar. */}
+        {readOnly && (
+          <div className="mb-4 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm" role="status" data-testid="read-only-banner">
+            <span className="font-semibold">Solo lectura.</span> Tu rol puede ver esta sección, pero no crear, editar ni eliminar. Si lo necesitas, pídeselo a un administrador.
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

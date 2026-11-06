@@ -47,6 +47,7 @@ class Invoice(BaseModel):
     model_config = ConfigDict(extra="ignore")
     invoice_number: str
     client_document: str
+    client_document_type: Optional[str] = None   # P1.15: CC 123 y NIT 123 son clientes distintos
     client_name: str
     items: List[InvoiceItem]
     subtotal: float
@@ -59,12 +60,20 @@ class Invoice(BaseModel):
     payment_method: Optional[str] = None
     amount_paid: float = 0
     balance: float = 0
+    due_date: Optional[datetime] = None          # P2.30: vencimiento (solo ventas a crédito)
+    credit_term_days: Optional[int] = None
+    stock_warnings: Optional[List[dict]] = None  # P2.34: productos que quedaron bajos/agotados (aviso del POS)
 
 class InvoiceCreate(BaseModel):
     client_document: str
+    # P1.15: tipo de documento del cliente. Sin él solo se acepta si hay un único cliente con ese número.
+    client_document_type: Optional[str] = None
     items: List[InvoiceItem]
     payment_status: str = "pagado"
     payment_method: Optional[str] = None
+    # P2.30: vencimiento elegido en el POS (AAAA-MM-DD). Vacío = plazo del cliente o el por defecto.
+    due_date: Optional[str] = None
+    tz_offset_minutes: int = 300
 
 class FioPayment(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -102,9 +111,23 @@ class Return(BaseModel):
     invoice_number: str
     items: List[ReturnItem]
     total: float
+    refund_amount: float = 0          # P2.31: efectivo entregado al cliente
+    refund_method: Optional[str] = None
+    cash_session_id: Optional[str] = None
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class ReturnItemCreate(BaseModel):
+    """Lo que el cliente puede pedir devolver: qué producto y cuántas unidades.
+
+    Precio, IVA e importes los calcula el servidor a partir de la factura original;
+    si el cliente envía unit_price/total, se ignoran.
+    """
+    barcode: str
+    quantity: int
+    product_name: Optional[str] = None
+
+
 class ReturnCreate(BaseModel):
     invoice_number: str
-    items: List[ReturnItem]
+    items: List[ReturnItemCreate]

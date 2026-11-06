@@ -24,12 +24,15 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 
 const PriceLists = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [priceLists, setPriceLists] = useState([]);
-  const [search, setSearch] = useState('');
+  // P1.18: paginadas y buscadas en el servidor (paginated=true; sin él, la lista completa para selectores).
+  const list = usePaginatedList(`${API}/price-lists`, { params: { paginated: true }, errorMessage: 'Error al cargar listas de precios' });
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,14 +47,8 @@ const PriceLists = () => {
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
-    try {
-      const response = await axios.get(`${API}/price-lists`);
-      setPriceLists(response.data);
-    } catch (error) {
-      toast.error('Error al cargar listas de precios');
-    } finally {
-      setLoading(false);
-    }
+    await list.reload();
+    setLoading(false);
   };
 
   const handleSubmit = async (e) => {
@@ -70,7 +67,7 @@ const PriceLists = () => {
       fetchData();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar');
+      toast.error(getErrorMessage(error, 'Error al guardar'));
     } finally {
       setIsSubmitting(false);
     }
@@ -102,13 +99,11 @@ const PriceLists = () => {
       toast.success('Lista de precios eliminada');
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar');
+      toast.error(getErrorMessage(error, 'Error al eliminar'));
     }
   };
 
-  const filtered = priceLists.filter(pl =>
-    search === '' || pl.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = list.items;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -187,8 +182,8 @@ const PriceLists = () => {
           <Input
             type="text"
             placeholder="Buscar listas de precios..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
             className="pl-10"
             data-testid="search-price-lists-input"
           />
@@ -235,11 +230,12 @@ const PriceLists = () => {
         </Table>
       </div>
 
-      {filtered.length === 0 && (
+      {filtered.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-price-lists">
           No se encontraron listas de precios
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="lista(s) de precios" testId="price-lists-pagination" />
     </div>
   );
 };

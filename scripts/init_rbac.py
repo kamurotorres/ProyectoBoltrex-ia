@@ -24,10 +24,28 @@ db_name = os.environ['DB_NAME']
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+
+def initial_admin_password() -> str:
+    """Contraseña del primer administrador, tomada de ADMIN_INITIAL_PASSWORD (backend/.env).
+    Ya no existe una contraseña por defecto (backlog P1.10)."""
+    from core.passwords import password_problem
+    password = os.environ.get("ADMIN_INITIAL_PASSWORD")
+    if not password:
+        sys.exit(
+            "\nERROR: falta ADMIN_INITIAL_PASSWORD.\n"
+            "Agrega en backend/.env una línea como:\n"
+            "    ADMIN_INITIAL_PASSWORD=<una contraseña de al menos 8 caracteres>\n"
+            "y vuelve a ejecutar el script. Al entrar por primera vez el sistema te pedirá cambiarla."
+        )
+    problem = password_problem(password)
+    if problem:
+        sys.exit(f"\nERROR: ADMIN_INITIAL_PASSWORD no es válida: {problem}")
+    return password
+
 async def initialize_rbac():
     client = AsyncIOMotorClient(mongo_url)
     db = client[db_name]
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)  # P1.19: fecha nativa
     
     print("Inicializando sistema RBAC...")
     
@@ -83,7 +101,7 @@ async def initialize_rbac():
     print("\nVerificando usuario admin...")
     admin_exists = await db.users_extended.find_one({"email": "admin@boltrex.com"})
     if not admin_exists:
-        hashed_pw = pwd_context.hash("admin123")
+        hashed_pw = pwd_context.hash(initial_admin_password())
         admin_user = {
             "email": "admin@boltrex.com",
             "first_name": "Admin",
@@ -92,6 +110,8 @@ async def initialize_rbac():
             "is_active": True,
             "roles": ["Administrador"],
             "hashed_password": hashed_pw,
+            # Al primer ingreso se exige cambiar la contraseña de ADMIN_INITIAL_PASSWORD.
+            "must_change_password": True,
             "created_at": now,
             "updated_at": now
         }
@@ -105,7 +125,7 @@ async def initialize_rbac():
             "created_at": now
         }
         await db.users.insert_one(legacy_user)
-        print("  Creado usuario admin: admin@boltrex.com / admin123")
+        print("  Creado usuario admin: admin@boltrex.com (contraseña: la de ADMIN_INITIAL_PASSWORD; se pedirá cambiarla al entrar)")
     else:
         print("  Usuario admin ya existe")
     

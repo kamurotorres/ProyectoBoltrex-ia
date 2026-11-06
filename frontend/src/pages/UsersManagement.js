@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
-import { API } from '@/App';
+import { API, AuthContext } from '@/App';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,14 +29,18 @@ import {
 } from '@/components/ui/table';
 import { Plus, Search, Edit, UserX, UserCheck, Shield, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
 
 const UsersManagement = () => {
   const { canCreate, canUpdate } = usePermissions();
-  const [users, setUsers] = useState([]);
+  const { user: loggedUser } = useContext(AuthContext);
+  // P1.18: usuarios paginados y buscados en el servidor.
+  const list = usePaginatedList(`${API}/rbac/users`, { errorMessage: 'Error al cargar usuarios' });
   const [roles, setRoles] = useState([]);
-  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
@@ -60,14 +64,13 @@ const UsersManagement = () => {
 
   const fetchData = async () => {
     try {
-      const [usersRes, rolesRes] = await Promise.all([
-        axios.get(`${API}/rbac/users`),
+      const [rolesRes] = await Promise.all([
         axios.get(`${API}/rbac/roles`)
       ]);
-      setUsers(usersRes.data);
+      list.reload();
       setRoles(rolesRes.data);
     } catch (error) {
-      toast.error('Error al cargar datos');
+      toast.error(getErrorMessage(error, 'Error al cargar datos'));
     } finally {
       setLoading(false);
     }
@@ -89,7 +92,7 @@ const UsersManagement = () => {
       fetchData();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar usuario');
+      toast.error(getErrorMessage(error, 'Error al guardar usuario'));
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +137,7 @@ const UsersManagement = () => {
       toast.success(isActive ? 'Usuario desactivado' : 'Usuario activado');
       fetchData();
     } catch (error) {
-      toast.error('Error al cambiar estado del usuario');
+      toast.error(getErrorMessage(error, 'Error al cambiar estado del usuario'));
     }
   };
 
@@ -153,7 +156,7 @@ const UsersManagement = () => {
       fetchData();
       setRoleDialogOpen(false);
     } catch (error) {
-      toast.error('Error al asignar roles');
+      toast.error(getErrorMessage(error, 'Error al asignar roles'));
     } finally {
       setIsAssigning(false);
     }
@@ -167,12 +170,7 @@ const UsersManagement = () => {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    search === '' ||
-    u.email.toLowerCase().includes(search.toLowerCase()) ||
-    u.first_name.toLowerCase().includes(search.toLowerCase()) ||
-    u.last_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = list.items;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -295,8 +293,8 @@ const UsersManagement = () => {
           <Input
             type="text"
             placeholder="Buscar usuarios..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
             className="pl-10"
             data-testid="search-users-input"
           />
@@ -368,6 +366,13 @@ const UsersManagement = () => {
                         size="icon"
                         onClick={() => handleToggleActive(user.email, user.is_active)}
                         data-testid={`toggle-user-${index}`}
+                        // El backend también lo impide; aquí se evita el clic y se explica por qué.
+                        disabled={user.is_active && user.email === loggedUser?.email}
+                        title={
+                          user.is_active && user.email === loggedUser?.email
+                            ? 'No puedes desactivar tu propia cuenta'
+                            : user.is_active ? 'Desactivar usuario' : 'Activar usuario'
+                        }
                       >
                         {user.is_active ? (
                           <UserX className="h-4 w-4" />
@@ -383,6 +388,7 @@ const UsersManagement = () => {
           </TableBody>
         </Table>
       </div>
+      <Pagination {...list.paginationProps} noun="usuario(s)" testId="users-pagination" />
 
       {/* Role Assignment Dialog */}
       <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>

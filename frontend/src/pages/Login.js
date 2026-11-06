@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext, API } from '@/App';
@@ -7,6 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/utils';
+import BoltrexLogo from '@/components/BoltrexLogo';
+import { takeLogoutReason } from '@/lib/session';
+
+// El registro público está desactivado en el backend por defecto (ALLOW_PUBLIC_REGISTRATION).
+// Para mostrar el enlace "Regístrate", construir el frontend con REACT_APP_ALLOW_REGISTRATION=true.
+const ALLOW_REGISTRATION = process.env.REACT_APP_ALLOW_REGISTRATION === 'true';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -16,6 +23,15 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
+  // Motivo del último cierre de sesión (inactividad, sesión cerrada desde otro equipo, etc.).
+  const [logoutReason, setLogoutReason] = useState(null);
+  useEffect(() => {
+    const reason = takeLogoutReason();
+    if (reason) {
+      setLogoutReason(reason);
+      toast.info(reason);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,30 +49,35 @@ const Login = () => {
         setIsRegister(false);
       } else {
         const response = await axios.post(`${API}/auth/login`, { email, password });
-        login(response.data.access_token, response.data.user);
-        toast.success('¡Bienvenido a Boltrex!');
-        navigate('/');
+        login(response.data.access_token, response.data.user, response.data.session);
+        if (response.data.user?.must_change_password) {
+          toast.warning('Por seguridad debes cambiar tu contraseña antes de continuar.');
+          navigate('/change-password');
+        } else {
+          toast.success('¡Bienvenido a Boltrex!');
+          navigate('/');
+        }
       }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error en la autenticación');
+      toast.error(getErrorMessage(error, 'Error en la autenticación'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center relative"
-      style={{
-        backgroundImage: 'url(https://images.unsplash.com/photo-1601277743437-2b4cf99aab99?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBkYXJrJTIwd2FyZWhvdXNlJTIwYWJzdHJhY3QlMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc2NzYzMDYzMXww&ixlib=rb-4.1.0&q=85)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center'
-      }}
-    >
-      <div className="absolute inset-0 bg-black/60" />
-      
+    // P2.27: fondo propio (degradado oscuro + rayo), sin imágenes externas.
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden px-4 bg-[radial-gradient(ellipse_at_top,_#14532d55,_transparent_55%),linear-gradient(160deg,#09090b_0%,#111114_55%,#052e16_100%)]">
+      <svg aria-hidden="true" className="pointer-events-none absolute -right-24 -bottom-24 h-[28rem] w-[28rem] opacity-[0.06]" viewBox="0 0 64 64">
+        <path d="M36 8 L16 36 H30 L26 56 L48 26 H34 Z" fill="#22c55e" />
+      </svg>
+
       <Card className="w-full max-w-md relative z-10 border-white/10" data-testid="login-card">
         <CardHeader className="space-y-1">
+          <div className="flex items-center gap-2 mb-2">
+            <BoltrexLogo size={36} />
+            <span className="text-xl font-bold tracking-tight">Boltrex</span>
+          </div>
           <CardTitle className="text-3xl font-bold tracking-tight">
             {isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}
           </CardTitle>
@@ -65,6 +86,11 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {logoutReason && (
+            <div className="mb-4 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm" role="status" data-testid="logout-reason">
+              {logoutReason}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegister && (
               <div className="space-y-2">
@@ -114,16 +140,18 @@ const Login = () => {
             </Button>
           </form>
 
-          <div className="mt-4 text-center text-sm">
-            <button
-              type="button"
-              onClick={() => setIsRegister(!isRegister)}
-              className="text-primary hover:underline"
-              data-testid="toggle-auth-mode"
-            >
-              {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
-            </button>
-          </div>
+          {ALLOW_REGISTRATION && (
+            <div className="mt-4 text-center text-sm">
+              <button
+                type="button"
+                onClick={() => setIsRegister(!isRegister)}
+                className="text-primary hover:underline"
+                data-testid="toggle-auth-mode"
+              >
+                {isRegister ? '¿Ya tienes cuenta? Inicia sesión' : '¿No tienes cuenta? Regístrate'}
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

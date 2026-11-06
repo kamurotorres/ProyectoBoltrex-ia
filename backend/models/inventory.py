@@ -43,6 +43,7 @@ class Product(BaseModel):
     tax_rate: float
     prices: List[ProductPrice] = []
     stock: int = 0
+    min_stock: Optional[int] = None   # P2.34: vacío = el stock mínimo general (Config. Sistema)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ProductCreate(BaseModel):
@@ -53,6 +54,7 @@ class ProductCreate(BaseModel):
     purchase_price: float
     tax_rate: float
     prices: List[ProductPrice] = []
+    min_stock: Optional[int] = Field(default=None, ge=0, le=1_000_000)
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -61,6 +63,7 @@ class ProductUpdate(BaseModel):
     purchase_price: Optional[float] = None
     tax_rate: Optional[float] = None
     prices: Optional[List[ProductPrice]] = None
+    min_stock: Optional[int] = Field(default=None, ge=0, le=1_000_000)   # null = volver al general
 
 class InventoryMovement(BaseModel):
     model_config = ConfigDict(extra="ignore")

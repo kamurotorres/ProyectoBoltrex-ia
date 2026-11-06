@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { 
-  CreditCard, 
-  Plus, 
-  Pencil, 
-  Trash2, 
-  Check, 
+import {
+  CreditCard,
+  Plus,
+  Pencil,
+  Trash2,
+  Check,
   X,
   ToggleLeft,
   ToggleRight,
@@ -35,10 +35,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePermissions } from '@/hooks/usePermissions';
+import { Search } from 'lucide-react';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 import { API } from '@/App';
 
 const PaymentMethods = () => {
-  const [paymentMethods, setPaymentMethods] = useState([]);
+  // P1.18: paginadas y buscadas en el servidor (paginated=true; POS y Fios usan /payment-methods/active).
+  const list = usePaginatedList(`${API}/payment-methods`, { params: { paginated: true }, errorMessage: 'Error al cargar las formas de pago' });
+  const paymentMethods = list.items;
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
@@ -59,16 +64,8 @@ const PaymentMethods = () => {
   }, []);
 
   const fetchPaymentMethods = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API}/payment-methods`);
-      setPaymentMethods(response.data);
-    } catch (error) {
-      toast.error('Error al cargar las formas de pago');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
+    await list.reload();
+    setLoading(false);
   };
 
   const handleOpenCreate = () => {
@@ -95,7 +92,7 @@ const PaymentMethods = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    
+
     if (!formData.name.trim()) {
       toast.error('El nombre es requerido');
       return;
@@ -172,6 +169,18 @@ const PaymentMethods = () => {
         )}
       </div>
 
+      {/* Buscador (en el servidor) */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar forma de pago..."
+          value={list.search}
+          onChange={(e) => list.setSearch(e.target.value)}
+          className="pl-10"
+          data-testid="search-payment-methods-input"
+        />
+      </div>
+
       {/* Payment Methods Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {paymentMethods.map((method) => (
@@ -222,7 +231,7 @@ const PaymentMethods = () => {
                   )}
                 </button>
               )}
-              
+
               <div className="flex items-center gap-2">
                 {canUpdate(moduleSlug) && (
                   <Button
@@ -251,11 +260,12 @@ const PaymentMethods = () => {
         ))}
       </div>
 
-      {paymentMethods.length === 0 && (
+      {paymentMethods.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground">
-          No hay formas de pago registradas
+          {list.search ? 'No se encontraron formas de pago' : 'No hay formas de pago registradas'}
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="forma(s) de pago" testId="payment-methods-pagination" />
 
       {/* Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

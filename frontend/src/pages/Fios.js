@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { 
-  Wallet, 
-  Search, 
-  Eye, 
+import {
+  Wallet,
+  Search,
+  Eye,
   DollarSign,
   User,
   FileText,
@@ -14,7 +15,9 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  CalendarClock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,13 +39,45 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/lib/utils';
+import { notifyDataChanged } from '@/lib/events';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
+import ExportMenu from '@/components/ExportMenu';
 import { API } from '@/App';
 
+// P2.30: estado de una cuenta / factura (al día · por vencer · vencida).
+const STATUS_STYLE = {
+  overdue: 'bg-red-500/15 text-red-400 border-red-500/30',
+  due_soon: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  current: 'bg-green-500/15 text-green-400 border-green-500/30',
+};
+const StatusBadge = ({ status, label }) => (
+  <span className={`inline-block px-2 py-0.5 rounded-full border text-xs whitespace-nowrap ${STATUS_STYLE[status] || STATUS_STYLE.current}`}>
+    {label}
+  </span>
+);
+const FILTERS = [
+  { key: '', label: 'Todas' },
+  { key: 'overdue', label: 'Vencidas' },
+  { key: 'due_soon', label: 'Por vencer' },
+  { key: 'current', label: 'Sin vencidas' },
+];
+
 const Fios = () => {
-  const [accounts, setAccounts] = useState([]);
+  // P1.18: cuentas paginadas y buscadas en el servidor; totales de toda la cartera.
+  // P2.30: filtro por estado / tramo de antigüedad (clic en las tarjetas de antigüedad).
+  const [searchParams] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(() => searchParams.get('status') || '');
+  const list = usePaginatedList(`${API}/fios`, {
+    params: statusFilter ? { status: statusFilter } : {},
+    errorMessage: 'Error al cargar las cuentas por cobrar',
+  });
+  const accounts = list.items;
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchTerm = list.search;
+  const setSearchTerm = list.setSearch;
   const [selectedClient, setSelectedClient] = useState(null);
   const [clientDetail, setClientDetail] = useState(null);
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -57,18 +92,10 @@ const Fios = () => {
   const { canCreate, canRead } = usePermissions();
   const moduleSlug = 'fios';
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`${API}/fios`);
-      setAccounts(response.data);
-    } catch (error) {
-      toast.error('Error al cargar las cuentas por cobrar');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const fetchAccounts = () => list.reload();
+  useEffect(() => {
+    if (!list.loading) setLoading(false);
+  }, [list.loading]);
 
   const fetchPaymentMethods = async () => {
     try {
@@ -80,17 +107,28 @@ const Fios = () => {
   };
 
   useEffect(() => {
-    fetchAccounts();
     fetchPaymentMethods();
-  }, [fetchAccounts]);
+  }, []);
 
-  const fetchClientDetail = async (clientDocument) => {
+  // P2.34: la campana de alertas abre Fios filtrado (?status=) o en el detalle de un cliente (?doc=&type=).
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) setStatusFilter(status);
+    const doc = searchParams.get('doc');
+    if (doc) fetchClientDetail({ number: doc, type: searchParams.get('type') || null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // P1.15: la cuenta es por tipo + número de documento ({ number, type }).
+  const fetchClientDetail = async (account) => {
     try {
-      const response = await axios.get(`${API}/fios/${clientDocument}`);
+      const response = await axios.get(`${API}/fios/${encodeURIComponent(account.number)}`, {
+        params: account.type ? { document_type: account.type } : {},
+      });
       setClientDetail(response.data);
-      setSelectedClient(clientDocument);
+      setSelectedClient(account);
     } catch (error) {
-      toast.error('Error al cargar el detalle del cliente');
+      toast.error(getErrorMessage(error, 'Error al cargar el detalle del cliente'));
       console.error(error);
     }
   };
@@ -114,12 +152,12 @@ const Fios = () => {
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
     if (isSubmitting) return;
-    
+
     if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
       toast.error('Ingrese un monto válido');
       return;
     }
-    
+
     if (!paymentForm.payment_method) {
       toast.error('Seleccione una forma de pago');
       return;
@@ -132,10 +170,11 @@ const Fios = () => {
         payment_method: paymentForm.payment_method,
         notes: paymentForm.notes || null
       });
-      
+
       toast.success(response.data.message);
+      notifyDataChanged();
       setShowPaymentDialog(false);
-      
+
       // Refresh client detail
       if (selectedClient) {
         fetchClientDetail(selectedClient);
@@ -171,18 +210,17 @@ const Fios = () => {
     }
   };
 
-  const filteredAccounts = accounts.filter(account =>
-    searchTerm === '' ||
-    account.client_document.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    account.client_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredAccounts = accounts;
+  const aging = list.aging || null;
+  const shortDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('es-CO') : '—');
 
-  // Calculate totals
+  // Totales de TODA la cartera, calculados en el servidor (no solo la página visible).
+  const s = list.summary || {};
   const totals = {
-    total_credit: accounts.reduce((sum, acc) => sum + acc.total_credit, 0),
-    total_paid: accounts.reduce((sum, acc) => sum + acc.total_paid, 0),
-    balance: accounts.reduce((sum, acc) => sum + acc.balance, 0),
-    clients_count: accounts.length
+    total_credit: s.total_credit || 0,
+    total_paid: s.total_paid || 0,
+    balance: s.balance || 0,
+    clients_count: s.clients_count || 0
   };
 
   if (loading && !selectedClient) {
@@ -198,10 +236,17 @@ const Fios = () => {
     return (
       <div className="space-y-6" data-testid="fios-client-detail">
         {/* Back Button */}
-        <Button variant="ghost" onClick={handleBackToList} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Volver al listado
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <Button variant="ghost" onClick={handleBackToList}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver al listado
+          </Button>
+          {/* P2.33: estado de cuenta para enviarle al cliente (pendiente + abonos) */}
+          <ExportMenu url={`${API}/fios/statement/${encodeURIComponent(clientDetail.client.document_number)}`}
+                      params={clientDetail.client.document_type ? { document_type: clientDetail.client.document_type } : {}}
+                      formats={['pdf', 'xlsx']} label="Estado de cuenta" variant="default" fallbackName="estado_cuenta"
+                      testId="fios-statement-button" hint="Facturas pendientes con su vencimiento, abonos y saldo." />
+        </div>
 
         {/* Client Info */}
         <div className="bg-card border border-border rounded-lg p-6">
@@ -212,7 +257,7 @@ const Fios = () => {
                 {clientDetail.client.name}
               </h2>
               <p className="text-muted-foreground font-mono">
-                {clientDetail.client.document_number}
+                {clientDetail.client.document_type ? `${clientDetail.client.document_type} ` : ''}{clientDetail.client.document_number}
               </p>
               {clientDetail.client.phone && (
                 <p className="text-sm text-muted-foreground mt-1">
@@ -225,6 +270,19 @@ const Fios = () => {
               <p className="text-2xl font-bold text-red-400">
                 {formatCurrency(clientDetail.summary.balance)}
               </p>
+              {clientDetail.summary.overdue_balance > 0 && (
+                <p className="text-sm text-red-400 mt-1" data-testid="fios-detail-overdue">
+                  Vencido: {formatCurrency(clientDetail.summary.overdue_balance)} · {clientDetail.summary.max_days_overdue} día(s) de atraso
+                </p>
+              )}
+              {clientDetail.credit && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Plazo {clientDetail.credit.term_days} día(s)
+                  {clientDetail.credit.credit_limit
+                    ? ` · cupo ${formatCurrency(clientDetail.credit.credit_limit)} (disponible ${formatCurrency(Math.max(0, clientDetail.credit.available))})`
+                    : ' · sin cupo límite'}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -277,6 +335,8 @@ const Fios = () => {
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium">Factura</th>
                   <th className="px-4 py-3 text-left text-sm font-medium">Fecha</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Vence</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">Total</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">Abonado</th>
                   <th className="px-4 py-3 text-right text-sm font-medium">Saldo</th>
@@ -291,6 +351,12 @@ const Fios = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
                       {formatDate(invoice.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {shortDate(invoice.due_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={invoice.credit_status} label={invoice.credit_status_label} />
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
                       {formatCurrency(invoice.total)}
@@ -533,16 +599,78 @@ const Fios = () => {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por cliente o documento..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-          data-testid="fios-search-input"
-        />
+      {/* P2.30: antigüedad de la cartera (clic para filtrar) */}
+      {aging && (
+        <Card data-testid="fios-aging">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarClock className="h-4 w-4" /> Antigüedad de la cartera
+              {aging.overdue_balance > 0 && (
+                <span className="ml-auto text-sm font-normal text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  Vencido {formatCurrency(aging.overdue_balance)} · {aging.overdue_clients} cliente(s)
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {aging.buckets.map((b) => {
+                const key = b.key === 'current' ? 'current' : b.key;
+                const active = statusFilter === key;
+                return (
+                  <button key={b.key} type="button" onClick={() => setStatusFilter(active ? '' : key)}
+                          className={`text-left rounded-lg border p-3 transition-colors hover:bg-muted/40 ${active ? 'ring-2 ring-primary' : ''} ${b.key === 'current' ? 'border-green-500/30' : 'border-red-500/30'}`}
+                          data-testid={`aging-bucket-${b.key}`}>
+                    <p className="text-xs text-muted-foreground">{b.key === 'current' ? 'Al día (sin vencer)' : `Vencido ${b.label}`}</p>
+                    <p className={`text-lg font-bold ${b.key === 'current' ? '' : b.balance > 0 ? 'text-red-400' : ''}`}>{formatCurrency(b.balance)}</p>
+                    <p className="text-xs text-muted-foreground">{b.invoices} factura(s)</p>
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => setStatusFilter(statusFilter === 'due_soon' ? '' : 'due_soon')}
+                      className={`text-left rounded-lg border border-amber-500/30 p-3 transition-colors hover:bg-muted/40 ${statusFilter === 'due_soon' ? 'ring-2 ring-primary' : ''}`}
+                      data-testid="aging-bucket-due-soon">
+                <p className="text-xs text-muted-foreground">Por vencer ({aging.due_soon_days} días)</p>
+                <p className="text-lg font-bold text-amber-400">{formatCurrency(aging.due_soon_balance)}</p>
+                <p className="text-xs text-muted-foreground">{aging.due_soon_invoices} factura(s)</p>
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              «Al día» incluye lo que está por vencer. Los tramos cuentan los días de atraso desde el vencimiento.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search + filtros + exportar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por cliente o documento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+            data-testid="fios-search-input"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {FILTERS.map((f) => (
+            <Button key={f.key || 'all'} size="sm" variant={statusFilter === f.key ? 'default' : 'outline'}
+                    onClick={() => setStatusFilter(f.key)} data-testid={`fios-filter-${f.key || 'all'}`}>
+              {f.label}
+            </Button>
+          ))}
+          {statusFilter && !FILTERS.some((f) => f.key === statusFilter) && (
+            <Button size="sm" variant="default" onClick={() => setStatusFilter('')}>
+              Vencido {aging?.buckets.find((b) => b.key === statusFilter)?.label || statusFilter} ✕
+            </Button>
+          )}
+        </div>
+        <ExportMenu url={`${API}/fios/export`} className="ml-auto" fallbackName="cartera" testId="fios-export-button"
+                    params={{ ...(statusFilter ? { status: statusFilter } : {}), ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }}
+                    hint="Cartera completa con el filtro activo y los tramos de antigüedad." />
       </div>
 
       {/* Accounts Table */}
@@ -555,6 +683,9 @@ const Fios = () => {
                 <th className="px-4 py-3 text-right text-sm font-medium">Total Crédito</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">Abonado</th>
                 <th className="px-4 py-3 text-right text-sm font-medium">Saldo</th>
+                <th className="px-4 py-3 text-right text-sm font-medium">Vencido</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Estado</th>
+                <th className="px-4 py-3 text-left text-sm font-medium">Próx. vence</th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Facturas</th>
                 <th className="px-4 py-3 text-center text-sm font-medium">Acciones</th>
               </tr>
@@ -562,17 +693,17 @@ const Fios = () => {
             <tbody className="divide-y divide-border">
               {filteredAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    {searchTerm ? 'No se encontraron resultados' : 'No hay cuentas por cobrar pendientes'}
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    {searchTerm || statusFilter ? 'No se encontraron cuentas con ese filtro' : 'No hay cuentas por cobrar pendientes'}
                   </td>
                 </tr>
               ) : (
                 filteredAccounts.map((account) => (
-                  <tr key={account.client_document} className="hover:bg-muted/30">
+                  <tr key={`${account.client_document_type || ''}-${account.client_document}`} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="font-medium">{account.client_name}</div>
                       <div className="text-xs text-muted-foreground font-mono">
-                        {account.client_document}
+                        {account.client_document_type ? `${account.client_document_type} ` : ''}{account.client_document}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
@@ -584,6 +715,15 @@ const Fios = () => {
                     <td className="px-4 py-3 text-right font-mono font-bold text-red-400">
                       {formatCurrency(account.balance)}
                     </td>
+                    <td className={`px-4 py-3 text-right font-mono ${account.overdue_balance > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                      {account.overdue_balance > 0 ? formatCurrency(account.overdue_balance) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={account.credit_status} label={account.credit_status_label} />
+                    </td>
+                    <td className="px-4 py-3 text-sm whitespace-nowrap">
+                      {shortDate(account.next_due_date)}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <span className="px-2 py-1 bg-muted rounded-full text-sm">
                         {account.invoices_count}
@@ -593,7 +733,7 @@ const Fios = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => fetchClientDetail(account.client_document)}
+                        onClick={() => fetchClientDetail({ number: account.client_document, type: account.client_document_type })}
                         data-testid={`view-client-${account.client_document}`}
                       >
                         <Eye className="h-4 w-4 mr-1" />
@@ -608,6 +748,7 @@ const Fios = () => {
           </table>
         </div>
       </div>
+      <Pagination {...list.paginationProps} noun="cuenta(s)" testId="fios-pagination" />
 
       {/* Payment Dialog */}
       <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>

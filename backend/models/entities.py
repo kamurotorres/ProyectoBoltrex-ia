@@ -24,6 +24,8 @@ class Client(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     price_list: str = "default"
+    credit_days: Optional[int] = None      # P2.30: plazo propio (vacío = el de Config. Sistema)
+    credit_limit: Optional[float] = None   # P2.30: cupo de crédito (vacío/0 = sin límite)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ClientCreate(BaseModel):
@@ -37,6 +39,8 @@ class ClientCreate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     price_list: str = "default"
+    credit_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    credit_limit: Optional[float] = Field(default=None, ge=0)
 
     @validator('email', 'phone', 'address', pre=True)
     def empty_str_to_none(cls, v):
@@ -53,6 +57,8 @@ class ClientUpdate(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     price_list: Optional[str] = None
+    credit_days: Optional[int] = Field(default=None, ge=0, le=3650)
+    credit_limit: Optional[float] = Field(default=None, ge=0)
 
     @validator('email', 'phone', 'address', pre=True)
     def empty_str_to_none(cls, v):

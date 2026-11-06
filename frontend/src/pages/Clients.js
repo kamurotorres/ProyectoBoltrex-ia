@@ -30,13 +30,17 @@ import {
 import { Plus, Search, Edit, MapPin, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getErrorMessage } from '@/lib/utils';
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
 
 const Clients = () => {
-  const { canCreate, canUpdate, canDelete } = usePermissions();
-  const [clients, setClients] = useState([]);
+  const { canCreate, canUpdate, canDelete, isAdmin } = usePermissions();
+  const money = (v) => `$${Number(v || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
+  // P1.18: clientes paginados y buscados en el servidor.
+  const list = usePaginatedList(`${API}/clients`, { errorMessage: 'Error al cargar clientes' });
   const [documentTypes, setDocumentTypes] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
-  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -52,7 +56,9 @@ const Clients = () => {
     address: '',
     latitude: '',
     longitude: '',
-    price_list: 'default'
+    price_list: 'default',
+    credit_days: '',
+    credit_limit: ''
   });
 
   useEffect(() => {
@@ -61,12 +67,11 @@ const Clients = () => {
 
   const fetchData = async () => {
     try {
-      const [clientsRes, docTypesRes, priceListsRes] = await Promise.all([
-        axios.get(`${API}/clients`),
+      const [docTypesRes, priceListsRes] = await Promise.all([
         axios.get(`${API}/document-types`),
         axios.get(`${API}/price-lists`)
       ]);
-      setClients(clientsRes.data);
+      list.reload();
       setDocumentTypes(docTypesRes.data);
       setPriceLists(priceListsRes.data);
     } catch (error) {
@@ -82,14 +87,30 @@ const Clients = () => {
 
     setIsSubmitting(true);
     try {
+      const { credit_days: creditDays, credit_limit: creditLimit, ...rest } = formData;
       const payload = {
-        ...formData,
+        ...rest,
         latitude: formData.latitude ? parseFloat(formData.latitude) : null,
         longitude: formData.longitude ? parseFloat(formData.longitude) : null
       };
+      // P2.30: solo el administrador asigna plazo y cupo (vacío = plazo por defecto / sin cupo).
+      // Los demás no los envían: el servidor lo rechazaría.
+      if (isAdmin) {
+        payload.credit_days = creditDays === '' ? null : Number(creditDays);
+        payload.credit_limit = creditLimit === '' ? null : Number(creditLimit);
+        if ((payload.credit_days !== null && (!Number.isInteger(payload.credit_days) || payload.credit_days < 0))
+            || (payload.credit_limit !== null && (Number.isNaN(payload.credit_limit) || payload.credit_limit < 0))) {
+          toast.error('El plazo debe ser un número entero de días (0 o más) y el cupo un valor de 0 o más.');
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       if (editMode) {
-        await axios.put(`${API}/clients/${currentClient.document_number}`, payload);
+        // P1.15: tipo + número identifican al cliente (CC 123 y NIT 123 son distintos).
+        await axios.put(`${API}/clients/${encodeURIComponent(currentClient.document_number)}`, payload, {
+          params: { document_type: currentClient.document_type },
+        });
         toast.success('Cliente actualizado');
       } else {
         await axios.post(`${API}/clients`, payload);
@@ -98,7 +119,7 @@ const Clients = () => {
       fetchData();
       handleCloseDialog();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al guardar cliente');
+      toast.error(getErrorMessage(error, 'Error al guardar cliente'));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,7 +139,9 @@ const Clients = () => {
         address: client.address || '',
         latitude: client.latitude?.toString() || '',
         longitude: client.longitude?.toString() || '',
-        price_list: client.price_list
+        price_list: client.price_list,
+        credit_days: client.credit_days ?? '',
+        credit_limit: client.credit_limit ? String(client.credit_limit) : ''
       });
     } else {
       setEditMode(false);
@@ -133,7 +156,9 @@ const Clients = () => {
         address: '',
         latitude: '',
         longitude: '',
-        price_list: 'default'
+        price_list: 'default',
+        credit_days: '',
+        credit_limit: ''
       });
     }
     setDialogOpen(true);
@@ -145,23 +170,20 @@ const Clients = () => {
     setCurrentClient(null);
   };
 
-  const handleDelete = async (documentNumber) => {
-    if (!window.confirm('¿Estás seguro de eliminar este cliente?')) return;
+  const handleDelete = async (client) => {
+    if (!window.confirm(`¿Estás seguro de eliminar al cliente ${client.first_name} ${client.last_name} (${client.document_type} ${client.document_number})?`)) return;
     try {
-      await axios.delete(`${API}/clients/${documentNumber}`);
+      await axios.delete(`${API}/clients/${encodeURIComponent(client.document_number)}`, {
+        params: { document_type: client.document_type },
+      });
       toast.success('Cliente eliminado');
       fetchData();
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Error al eliminar cliente');
+      toast.error(getErrorMessage(error, 'Error al eliminar cliente'));
     }
   };
 
-  const filteredClients = clients.filter(c =>
-    search === '' ||
-    c.document_number.toLowerCase().includes(search.toLowerCase()) ||
-    c.first_name.toLowerCase().includes(search.toLowerCase()) ||
-    c.last_name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredClients = list.items;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -326,6 +348,26 @@ const Clients = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="credit_days">Plazo de crédito (días)</Label>
+                    <Input id="credit_days" type="number" min="0" step="1" placeholder="Por defecto" disabled={!isAdmin}
+                           value={formData.credit_days}
+                           onChange={(e) => setFormData({ ...formData, credit_days: e.target.value })} data-testid="client-credit-days-input" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="credit_limit">Cupo de crédito</Label>
+                    <Input id="credit_limit" type="number" min="0" step="1" placeholder="Sin límite" disabled={!isAdmin}
+                           value={formData.credit_limit}
+                           onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })} data-testid="client-credit-limit-input" />
+                  </div>
+                  <p className="col-span-2 text-xs text-muted-foreground -mt-2">
+                    {isAdmin
+                      ? 'Vacío: usa el plazo de Config. Sistema y no tiene límite de cupo. Una venta a crédito que supere el cupo se rechaza.'
+                      : 'Solo un administrador puede asignar el plazo y el cupo de crédito.'}
+                  </p>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
@@ -352,8 +394,8 @@ const Clients = () => {
           <Input
             type="text"
             placeholder="Buscar por documento o nombre..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={list.search}
+            onChange={(e) => list.setSearch(e.target.value)}
             className="pl-10"
             data-testid="search-clients-input"
           />
@@ -369,6 +411,7 @@ const Clients = () => {
               <TableHead>Teléfono</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Lista Precios</TableHead>
+              <TableHead>Crédito</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -380,6 +423,10 @@ const Clients = () => {
                 <TableCell>{client.phone || '-'}</TableCell>
                 <TableCell>{client.email || '-'}</TableCell>
                 <TableCell>{client.price_list}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  {client.credit_days != null ? `${client.credit_days} días` : 'Plazo por defecto'}
+                  {client.credit_limit ? ` · cupo ${money(client.credit_limit)}` : ''}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
                     {client.latitude && client.longitude && (
@@ -406,7 +453,7 @@ const Clients = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(client.document_number)}
+                        onClick={() => handleDelete(client)}
                         data-testid={`delete-client-${index}`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -420,11 +467,12 @@ const Clients = () => {
         </Table>
       </div>
 
-      {filteredClients.length === 0 && (
+      {filteredClients.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-clients">
           No se encontraron clientes
         </div>
       )}
+      <Pagination {...list.paginationProps} noun="cliente(s)" testId="clients-pagination" />
     </div>
   );
 };

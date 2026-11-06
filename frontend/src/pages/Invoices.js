@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { 
-  FileText, 
-  Search, 
-  Filter, 
-  Download, 
-  Eye, 
-  X, 
-  ChevronLeft, 
+import { usePaginatedList } from '@/hooks/usePaginatedList';
+import Pagination from '@/components/Pagination';
+import {
+  FileText,
+  Search,
+  Filter,
+  Download,
+  Eye,
+  X,
+  ChevronLeft,
   ChevronRight,
   Calendar,
   User,
@@ -36,13 +38,11 @@ import {
 import { API } from '@/App';
 
 const Invoices = () => {
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
+  // P1.18: misma paginación que el resto de listados (componente común, 25/50/100 por página).
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Filters
   const [filters, setFilters] = useState({
     start_date: '',
@@ -53,42 +53,19 @@ const Invoices = () => {
     status: ''
   });
 
-  const fetchInvoices = useCallback(async () => {
-    try {
-      setLoading(true);
-      const params = new URLSearchParams();
-      params.append('page', pagination.page);
-      params.append('limit', pagination.limit);
-      
-      // Add active filters
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value !== 'all') {
-          params.append(key, value);
-        }
-      });
-      
-      const response = await axios.get(`${API}/pos/invoices?${params.toString()}`);
-      setInvoices(response.data.invoices);
-      setPagination(prev => ({
-        ...prev,
-        total: response.data.pagination.total,
-        pages: response.data.pagination.pages
-      }));
-    } catch (error) {
-      toast.error('Error al cargar las facturas');
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.limit, filters]);
-
-  useEffect(() => {
-    fetchInvoices();
-  }, [fetchInvoices]);
+  // Filtros activos → parámetros del servidor (días locales completos, P1.14). Cambiar un
+  // filtro vuelve a la página 1 (lo hace el hook).
+  const activeParams = { tz_offset_minutes: new Date().getTimezoneOffset() };
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && value !== 'all') activeParams[key] = value;
+  });
+  const list = usePaginatedList(`${API}/pos/invoices`, { params: activeParams, errorMessage: 'Error al cargar las facturas' });
+  const invoices = list.items;
+  const loading = list.loading;
+  const fetchInvoices = () => list.reload();
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
   };
 
   const clearFilters = () => {
@@ -100,7 +77,6 @@ const Invoices = () => {
       invoice_number: '',
       status: ''
     });
-    setPagination(prev => ({ ...prev, page: 1 }));
   };
 
   const downloadTicket = async (invoiceNumber) => {
@@ -108,7 +84,7 @@ const Invoices = () => {
       const response = await axios.get(`${API}/pos/invoices/${invoiceNumber}/ticket`, {
         responseType: 'blob'
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -117,7 +93,7 @@ const Invoices = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       toast.success('Ticket descargado');
     } catch (error) {
       toast.error('Error al descargar el ticket');
@@ -186,8 +162,8 @@ const Invoices = () => {
           </h1>
           <p className="text-muted-foreground mt-1">Gestión y consulta de facturas de venta</p>
         </div>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={() => setShowFilters(!showFilters)}
           data-testid="toggle-filters-btn"
         >
@@ -274,24 +250,6 @@ const Invoices = () => {
         </div>
       )}
 
-      {/* Results Summary */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>Mostrando {invoices.length} de {pagination.total} facturas</span>
-        <Select
-          value={String(pagination.limit)}
-          onValueChange={(value) => setPagination(prev => ({ ...prev, limit: Number(value), page: 1 }))}
-        >
-          <SelectTrigger className="w-32" data-testid="page-limit-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">10 por página</SelectItem>
-            <SelectItem value="20">20 por página</SelectItem>
-            <SelectItem value="50">50 por página</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Invoices Table */}
       <div className="bg-card border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
@@ -369,34 +327,10 @@ const Invoices = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page === 1}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-              data-testid="prev-page-btn"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Anterior
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Página {pagination.page} de {pagination.pages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pagination.page === pagination.pages}
-              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-              data-testid="next-page-btn"
-            >
-              Siguiente
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
-        )}
+        {/* Pagination (componente común, P1.18) */}
+        <div className="border-t border-border px-4">
+          <Pagination {...list.paginationProps} noun="factura(s)" testId="invoices-pagination" />
+        </div>
       </div>
 
       {/* Invoice Detail Modal */}
@@ -408,7 +342,7 @@ const Invoices = () => {
               Detalle de Factura {selectedInvoice?.invoice_number}
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedInvoice && (
             <div className="space-y-6">
               {/* Invoice Info */}
