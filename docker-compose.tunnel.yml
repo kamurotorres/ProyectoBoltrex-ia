@@ -1,0 +1,16 @@
+# Boltrex — usar la app a través de un túnel (ngrok) para que otras personas la prueben desde fuera de la red.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.tunnel.yml up -d frontend
+#   ngrok http 3000
+#
+# Qué hace: nginx toma la IP REAL de cada visitante de la cabecera X-Forwarded-For que agrega ngrok (la misma
+# configuración que en producción detrás de Caddy: deploy/nginx/realip.conf). Sin esto el backend vería a todos
+# con la IP del túnel y el límite de intentos de login por IP (P1.9) los bloquearía a todos juntos.
+#
+# Solo mientras se use el túnel: así nginx confía en X-Forwarded-For de las redes privadas, y un equipo de la
+# red local podría falsificarla. Para volver al modo normal:
+#   docker compose up -d frontend
+services:
+  frontend:
+    volumes:
+      - ./deploy/nginx/realip.conf:/etc/nginx/snippets/realip.conf:ro
