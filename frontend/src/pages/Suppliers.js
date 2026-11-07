@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +25,11 @@ import Pagination from '@/components/Pagination';
 import { usePermissions } from '@/hooks/usePermissions';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useZodForm } from '@/hooks/useZodForm';
+import { TextField } from '@/components/form/Field';
+import { supplierSchema } from '@/lib/schemas';
+
+const EMPTY = { name: '', contact_name: '', phone: '', email: '', address: '' };
 
 const Suppliers = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
@@ -33,17 +37,12 @@ const Suppliers = () => {
   // P1.18: proveedores paginados y buscados en el servidor.
   const list = usePaginatedList(`${API}/suppliers`, { errorMessage: 'Error al cargar proveedores' });
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    contact_name: '',
-    phone: '',
-    email: '',
-    address: ''
-  });
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo).
+  const form = useZodForm(supplierSchema, EMPTY);
+  const isSubmitting = form.submitting;
 
   useEffect(() => {
     fetchSuppliers();
@@ -54,11 +53,7 @@ const Suppliers = () => {
     setLoading(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       if (editMode) {
         await api.put(`/suppliers/${encodeURIComponent(currentSupplier.name)}`, formData);
@@ -71,16 +66,14 @@ const Suppliers = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar proveedor'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleOpenDialog = (supplier = null) => {
     if (supplier) {
       setEditMode(true);
       setCurrentSupplier(supplier);
-      setFormData({
+      form.reset({
         name: supplier.name,
         contact_name: supplier.contact_name || '',
         phone: supplier.phone || '',
@@ -90,7 +83,7 @@ const Suppliers = () => {
     } else {
       setEditMode(false);
       setCurrentSupplier(null);
-      setFormData({ name: '', contact_name: '', phone: '', email: '', address: '' });
+      form.reset(EMPTY);
     }
     setDialogOpen(true);
   };
@@ -99,7 +92,7 @@ const Suppliers = () => {
     setDialogOpen(false);
     setEditMode(false);
     setCurrentSupplier(null);
-    setFormData({ name: '', contact_name: '', phone: '', email: '', address: '' });
+    form.reset(EMPTY);
   };
 
   const handleDelete = async (supplierName) => {
@@ -138,57 +131,15 @@ const Suppliers = () => {
             <DialogTitle>{editMode ? 'Editar Proveedor' : 'Nuevo Proveedor'}</DialogTitle>
             <DialogDescription>{editMode ? 'Modifica los datos del proveedor' : 'Registra un nuevo proveedor'}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre de Empresa *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  data-testid="supplier-name-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="contact_name">Contacto</Label>
-                <Input
-                  id="contact_name"
-                  value={formData.contact_name}
-                  onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
-                  data-testid="supplier-contact-input"
-                />
-              </div>
+              <TextField form={form} name="name" label="Nombre de Empresa *" data-testid="supplier-name-input" />
+              <TextField form={form} name="contact_name" label="Contacto" data-testid="supplier-contact-input" />
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    data-testid="supplier-phone-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    data-testid="supplier-email-input"
-                  />
-                </div>
+                <TextField form={form} name="phone" label="Teléfono" data-testid="supplier-phone-input" />
+                <TextField form={form} name="email" label="Email" type="email" data-testid="supplier-email-input" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Input
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  data-testid="supplier-address-input"
-                />
-              </div>
+              <TextField form={form} name="address" label="Dirección" data-testid="supplier-address-input" />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCloseDialog}>

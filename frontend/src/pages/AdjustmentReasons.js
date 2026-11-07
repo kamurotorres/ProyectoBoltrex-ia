@@ -20,6 +20,9 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useZodForm } from '@/hooks/useZodForm';
+import { FieldError, TextField } from '@/components/form/Field';
+import { adjustmentReasonSchema } from '@/lib/schemas';
 
 // P2.32: catálogo de motivos de los ajustes de inventario (como Categorías).
 export const ADJUSTMENT_KINDS = [
@@ -33,14 +36,16 @@ const AdjustmentReasons = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
   const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
   const list = usePaginatedList(`${API}/adjustment-reasons`, { params: { paginated: true }, errorMessage: 'Error al cargar los motivos' });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [current, setCurrent] = useState(null);
-  const [formData, setFormData] = useState(EMPTY);
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo).
+  const form = useZodForm(adjustmentReasonSchema, EMPTY);
+  const isSubmitting = form.submitting;
+  const [appliesTo, requiresNote, isActive] = form.watch(['applies_to', 'requires_note', 'is_active']);
 
   const openDialog = (reason = null) => {
     setCurrent(reason);
-    setFormData(reason ? {
+    form.reset(reason ? {
       name: reason.name, description: reason.description || '', applies_to: reason.applies_to || [],
       requires_note: !!reason.requires_note, is_active: reason.is_active !== false,
     } : EMPTY);
@@ -48,22 +53,12 @@ const AdjustmentReasons = () => {
   };
 
   const toggleKind = (key) => {
-    const has = formData.applies_to.includes(key);
-    setFormData({ ...formData, applies_to: has ? formData.applies_to.filter((k) => k !== key) : [...formData.applies_to, key] });
+    const has = appliesTo.includes(key);
+    form.setValue('applies_to', has ? appliesTo.filter((k) => k !== key) : [...appliesTo, key],
+                  { shouldValidate: form.formState.isSubmitted });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-    if (!formData.name.trim()) {
-      toast.error('Escribe el nombre del motivo.');
-      return;
-    }
-    if (formData.applies_to.length === 0) {
-      toast.error('Marca al menos un tipo de ajuste (entrada, salida o conteo) para el motivo.');
-      return;
-    }
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       if (current) {
         await api.put(`/adjustment-reasons/${encodeURIComponent(current.name)}`, formData);
@@ -76,10 +71,8 @@ const AdjustmentReasons = () => {
       list.reload();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar el motivo'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async (reason) => {
     if (!(await confirm(`¿Eliminar el motivo "${reason.name}"?`, { confirmLabel: 'Eliminar', destructive: true }))) return;
@@ -117,37 +110,30 @@ const AdjustmentReasons = () => {
               {current ? 'Los ajustes ya hechos conservan el nombre que tenía el motivo.' : 'Crea un motivo para los ajustes de inventario'}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="reason-name">Nombre *</Label>
-                <Input id="reason-name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                       data-testid="reason-name-input" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reason-description">Descripción</Label>
-                <Input id="reason-description" value={formData.description}
-                       onChange={(e) => setFormData({ ...formData, description: e.target.value })} data-testid="reason-description-input" />
-              </div>
+              <TextField form={form} name="name" id="reason-name" label="Nombre *" data-testid="reason-name-input" />
+              <TextField form={form} name="description" id="reason-description" label="Descripción" data-testid="reason-description-input" />
               <div className="space-y-2">
                 <Label>Se puede usar en *</Label>
                 <div className="flex flex-wrap gap-2">
                   {ADJUSTMENT_KINDS.map((k) => (
                     <button key={k.key} type="button" onClick={() => toggleKind(k.key)}
-                            className={`rounded-full border px-3 py-1 text-sm ${formData.applies_to.includes(k.key) ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                            className={`rounded-full border px-3 py-1 text-sm ${appliesTo.includes(k.key) ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
                             data-testid={`reason-kind-${k.key}`}>
                       {k.label}
                     </button>
                   ))}
                 </div>
+                <FieldError error={form.errors.applies_to} id="reason-kinds-error" />
               </div>
               <label className="flex items-center gap-3">
-                <Switch checked={formData.requires_note} onCheckedChange={(v) => setFormData({ ...formData, requires_note: v })}
+                <Switch checked={!!requiresNote} onCheckedChange={(v) => form.setValue('requires_note', v)}
                         data-testid="reason-requires-note" />
                 <span className="text-sm">Exigir observación al usarlo</span>
               </label>
               <label className="flex items-center gap-3">
-                <Switch checked={formData.is_active} onCheckedChange={(v) => setFormData({ ...formData, is_active: v })}
+                <Switch checked={!!isActive} onCheckedChange={(v) => form.setValue('is_active', v)}
                         data-testid="reason-active" />
                 <span className="text-sm">Activo (se puede elegir en los ajustes)</span>
               </label>

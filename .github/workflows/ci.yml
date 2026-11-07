@@ -113,6 +113,12 @@ jobs:
       - name: Reglas del carrito del POS vs. el código original
         run: node tests/frontend_cart_check.js
 
+      - name: Reglas de los formularios (zod) vs. backend y versión original
+        run: node tests/frontend_forms_check.js
+
+      - name: Formularios renderizados (jsdom) — errores bajo cada campo y datos enviados
+        run: node tests/frontend_forms_render_check.js
+
       - name: Lint (nombres sin definir)
         run: bash tests/frontend_lint_check.sh
 

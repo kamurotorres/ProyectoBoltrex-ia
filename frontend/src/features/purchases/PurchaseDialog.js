@@ -6,8 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-// Extraído de Purchases.js (mantenimiento fase 5) sin cambios en el JSX.
-export default function PurchaseDialog({ addProductToItems, calculateTotal, dialogDesc, dialogMode, dialogOpen, dialogTitle, filteredProducts, filteredSuppliers, handleCloseDialog, handleSelectSupplier, handleSubmit, isReadonly, isSubmitting, items, productInputRef, productSearch, removeItem, selectedSupplier, setDialogOpen, setItemQuantity, setItems, setProductSearch, setSelectedSupplier, setShowProductDropdown, setShowSupplierDropdown, setSupplierSearch, showProductDropdown, showSupplierDropdown, supplierInputRef, supplierSearch, updateItemField }) {
+import { FieldError } from '@/components/form/Field';
+
+// Extraído de Purchases.js (mantenimiento fase 5). Fase 6: el estado del formulario llega en `purchaseForm`
+// (features/purchases/usePurchaseForm) en vez de 31 props sueltas; los errores salen debajo de cada parte.
+export default function PurchaseDialog({ purchaseForm, dialogDesc, dialogMode, dialogOpen, dialogTitle, handleCloseDialog, handleSubmit, isReadonly, isSubmitting, setDialogOpen }) {
+  const {
+    addProductToItems, calculateTotal, errors, filteredProducts, filteredSuppliers, handleSelectSupplier, items, productInputRef,
+    productSearch, removeItem, selectedSupplier, setItemQuantity, setItems, setProductSearch, setSelectedSupplier,
+    setShowProductDropdown, setShowSupplierDropdown, setSupplierSearch, showProductDropdown, showSupplierDropdown,
+    supplierInputRef, supplierSearch, updateItemField,
+  } = purchaseForm;
+  const itemsError = errors.items?.message ? errors.items : errors.items?.root;
+  const rowError = (index) => errors.items?.[index]?.quantity || errors.items?.[index]?.unit_cost;
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" data-testid="purchase-dialog">
@@ -15,7 +26,7 @@ export default function PurchaseDialog({ addProductToItems, calculateTotal, dial
           <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>{dialogDesc}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="space-y-5 py-4">
 
             {/* 1. Supplier */}
@@ -66,6 +77,7 @@ export default function PurchaseDialog({ addProductToItems, calculateTotal, dial
                   )}
                 </div>
               )}
+              <FieldError error={errors.supplier} id="purchase-supplier-error" />
             </div>
 
             {/* 2. Product Search */}
@@ -132,6 +144,7 @@ export default function PurchaseDialog({ addProductToItems, calculateTotal, dial
                 <div className="text-center py-6 text-muted-foreground">
                   <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">Busca y agrega productos para comenzar</p>
+                  <FieldError error={itemsError} id="purchase-items-error" />
                 </div>
               ) : (
                 <>
@@ -147,11 +160,12 @@ export default function PurchaseDialog({ addProductToItems, calculateTotal, dial
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {items.map((item) => (
+                        {items.map((item, index) => (
                           <TableRow key={item.barcode}>
                             <TableCell>
                               <div className="font-medium">{item.product_name}</div>
                               <div className="text-xs text-muted-foreground font-mono">{item.barcode}</div>
+                              <FieldError error={rowError(index)} id={`item-error-${item.barcode}`} />
                             </TableCell>
                             <TableCell>
                               {isReadonly ? (

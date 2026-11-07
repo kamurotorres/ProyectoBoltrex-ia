@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search } from 'lucide-react';
@@ -11,8 +11,8 @@ import { getErrorMessage } from '@/lib/utils';
 import { notifyDataChanged } from '@/lib/events';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
-import { useServerSearch } from '@/hooks/useServerSearch';
 import PurchaseDialog from '@/features/purchases/PurchaseDialog';
+import { usePurchaseForm } from '@/features/purchases/usePurchaseForm';
 import PurchasesTable from '@/features/purchases/PurchasesTable';
 
 const Purchases = () => {
@@ -26,7 +26,6 @@ const Purchases = () => {
   });
   const purchases = list.items;
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmingId, setConfirmingId] = useState(null);
 
   // Dialog state
@@ -34,28 +33,11 @@ const Purchases = () => {
   const [dialogMode, setDialogMode] = useState('create'); // create | edit | readonly
   const [currentPurchase, setCurrentPurchase] = useState(null);
 
-  // Form state
-  const [supplierSearch, setSupplierSearch] = useState('');
-  const [selectedSupplier, setSelectedSupplier] = useState(null);
-  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
-  const supplierInputRef = useRef(null);
-
-  const [productSearch, setProductSearch] = useState('');
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const productInputRef = useRef(null);
-
-  const [items, setItems] = useState([]);
+  // Formulario (proveedor, buscadores y filas): fase 6, react-hook-form + zod en features/purchases/usePurchaseForm.
+  const purchaseForm = usePurchaseForm();
+  const isSubmitting = purchaseForm.form.submitting;
 
   useEffect(() => { fetchData(); }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (supplierInputRef.current && !supplierInputRef.current.contains(event.target)) setShowSupplierDropdown(false);
-      if (productInputRef.current && !productInputRef.current.contains(event.target)) setShowProductDropdown(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const fetchData = async () => {
     try {
@@ -65,90 +47,25 @@ const Purchases = () => {
     }
   };
 
-  // P1.18: desplegables con búsqueda en el servidor (hook compartido, fase 5).
-  const { results: supplierResults } = useServerSearch('/suppliers', supplierSearch, { pageSize: 10 });
-  const { results: productResults } = useServerSearch('/products', productSearch, { pageSize: 8 });
-  const filteredSuppliers = supplierSearch.length >= 2 ? supplierResults : [];
-  const filteredProducts = productSearch.length >= 2 ? productResults : [];
-
-  const handleSelectSupplier = (supplier) => {
-    setSelectedSupplier(supplier);
-    setSupplierSearch(supplier.name);
-    setShowSupplierDropdown(false);
-  };
-
-  const addProductToItems = (product) => {
-    const existing = items.find(i => i.barcode === product.barcode);
-    if (existing) {
-      setItems(items.map(i =>
-        i.barcode === product.barcode
-          ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.unit_cost }
-          : i
-      ));
-    } else {
-      setItems([...items, {
-        barcode: product.barcode,
-        product_name: product.name,
-        quantity: 1,
-        unit_cost: product.purchase_price || 0,
-        total: product.purchase_price || 0
-      }]);
-    }
-    setProductSearch('');
-    setShowProductDropdown(false);
-  };
-
-  const updateItemField = (barcode, field, value) => {
-    setItems(items.map(item => {
-      if (item.barcode !== barcode) return item;
-      const updated = { ...item, [field]: value };
-      const qty = parseFloat(field === 'quantity' ? value : item.quantity) || 0;
-      const cost = parseFloat(field === 'unit_cost' ? value : item.unit_cost) || 0;
-      updated.total = qty * cost;
-      return updated;
-    }));
-  };
-
-  const setItemQuantity = (barcode, value) => {
-    const qty = parseInt(value) || 0;
-    if (qty <= 0) return;
-    updateItemField(barcode, 'quantity', qty);
-  };
-
-  const removeItem = (barcode) => {
-    setItems(items.filter(i => i.barcode !== barcode));
-  };
-
-  const calculateTotal = () => items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-
   // === Dialog open helpers ===
   const openCreateDialog = () => {
     setDialogMode('create');
     setCurrentPurchase(null);
-    setSelectedSupplier(null);
-    setSupplierSearch('');
-    setProductSearch('');
-    setItems([]);
+    purchaseForm.load();
     setDialogOpen(true);
   };
 
   const openEditDialog = (purchase) => {
     setDialogMode('edit');
     setCurrentPurchase(purchase);
-    setSelectedSupplier({ name: purchase.supplier_name });
-    setSupplierSearch(purchase.supplier_name);
-    setItems(purchase.items.map(i => ({ ...i })));
-    setProductSearch('');
+    purchaseForm.load(purchase);
     setDialogOpen(true);
   };
 
   const openViewDialog = (purchase) => {
     setDialogMode('readonly');
     setCurrentPurchase(purchase);
-    setSelectedSupplier({ name: purchase.supplier_name });
-    setSupplierSearch(purchase.supplier_name);
-    setItems(purchase.items.map(i => ({ ...i })));
-    setProductSearch('');
+    purchaseForm.load(purchase);
     setDialogOpen(true);
   };
 
@@ -158,24 +75,9 @@ const Purchases = () => {
   };
 
   // === Submit (create / edit) ===
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedSupplier) { toast.error('Selecciona un proveedor'); return; }
-    if (items.length === 0) { toast.error('Agrega al menos un producto'); return; }
-
-    const payload = {
-      supplier_name: selectedSupplier.name,
-      items: items.map(item => ({
-        barcode: item.barcode,
-        product_name: item.product_name,
-        quantity: parseInt(item.quantity),
-        unit_cost: parseFloat(item.unit_cost),
-        total: parseFloat(item.total)
-      }))
-    };
-
-    if (isSubmitting) return;
-    setIsSubmitting(true);
+  // Proveedor elegido, al menos un producto y filas válidas: lo valida purchaseSchema (error debajo de cada parte).
+  const handleSubmit = purchaseForm.form.submit(async (values) => {
+    const payload = purchaseForm.toPayload(values);
     try {
       if (dialogMode === 'edit') {
         await api.put(`/purchases/${currentPurchase.purchase_number}`, payload);
@@ -188,10 +90,8 @@ const Purchases = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar compra'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   // === Confirm purchase ===
   const handleConfirm = async (purchaseNumber) => {
@@ -232,7 +132,9 @@ const Purchases = () => {
       </div>
 
       {/* ======= DIALOG ======= */}
-      <PurchaseDialog addProductToItems={addProductToItems} calculateTotal={calculateTotal} dialogDesc={dialogDesc} dialogMode={dialogMode} dialogOpen={dialogOpen} dialogTitle={dialogTitle} filteredProducts={filteredProducts} filteredSuppliers={filteredSuppliers} handleCloseDialog={handleCloseDialog} handleSelectSupplier={handleSelectSupplier} handleSubmit={handleSubmit} isReadonly={isReadonly} isSubmitting={isSubmitting} items={items} productInputRef={productInputRef} productSearch={productSearch} removeItem={removeItem} selectedSupplier={selectedSupplier} setDialogOpen={setDialogOpen} setItemQuantity={setItemQuantity} setItems={setItems} setProductSearch={setProductSearch} setSelectedSupplier={setSelectedSupplier} setShowProductDropdown={setShowProductDropdown} setShowSupplierDropdown={setShowSupplierDropdown} setSupplierSearch={setSupplierSearch} showProductDropdown={showProductDropdown} showSupplierDropdown={showSupplierDropdown} supplierInputRef={supplierInputRef} supplierSearch={supplierSearch} updateItemField={updateItemField} />
+      <PurchaseDialog purchaseForm={purchaseForm} dialogDesc={dialogDesc} dialogMode={dialogMode} dialogOpen={dialogOpen} dialogTitle={dialogTitle}
+                      handleCloseDialog={handleCloseDialog} handleSubmit={handleSubmit} isReadonly={isReadonly} isSubmitting={isSubmitting}
+                      setDialogOpen={setDialogOpen} />
 
       {/* ======= PURCHASES TABLE ======= */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
