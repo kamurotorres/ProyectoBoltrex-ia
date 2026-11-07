@@ -5,7 +5,7 @@
 # Lint solo de errores reales (decisión 3A): sintaxis, nombres sin definir e imports que no existen.
 #
 # Trabajos en paralelo:
-#   backend   → lint + las 25 baterías de integración contra Mongo 6 (replica set) — scripts/run_all_tests.sh
+#   backend   → lint + pruebas unitarias (pytest, fase 7) + las baterías de integración contra Mongo 6 (replica set)
 #   frontend  → mapa de permisos del menú + build de la imagen Docker del frontend
 #   imagenes  → build de la imagen Docker del backend (la que se desplegaría en el VPS)
 name: CI
@@ -26,7 +26,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (lint + pruebas de integración)
+    name: Backend (lint + pruebas unitarias + integración)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -73,8 +73,11 @@ jobs:
           # Que el backend arranque sus imports (detecta módulos o funciones que no existen)
           cd backend && DB_NAME=boltrex_importtest ../backend/.venv/bin/python -c "import main; print('Backend importa OK:', len(main.app.routes), 'rutas')"
 
-      - name: Pruebas de integración (25 baterías)
-        run: scripts/run_all_tests.sh
+      - name: Pruebas unitarias (pytest — reglas de core/ y de arquitectura, sin Mongo)
+        run: backend/.venv/bin/python -m pytest --junitxml=.test-logs/unit.xml
+
+      - name: Pruebas de integración (baterías contra Mongo)
+        run: BOLTREX_SKIP_UNIT=1 scripts/run_all_tests.sh
 
       - name: Logs de las pruebas (si algo falló)
         if: failure()

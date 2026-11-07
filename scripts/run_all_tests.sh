@@ -2,8 +2,9 @@
 # Boltrex (P2.24): corre TODAS las baterías de pruebas de integración con un solo comando.
 # Lo usa el CI de GitHub Actions y sirve igual en el Mac:
 #
-#   scripts/run_all_tests.sh                 # todas
+#   scripts/run_all_tests.sh                 # todas (primero las unitarias de pytest, fase 7)
 #   scripts/run_all_tests.sh credit cash     # solo esas (de la fase principal)
+#   BOLTREX_SKIP_UNIT=1 scripts/run_all_tests.sh   # sin las unitarias (el CI las corre en su propio paso)
 #
 # - Nunca toca la BD real `boltrex`: usa BD temporales boltrex_ci*test y las borra al terminar.
 # - Mongo: usa MONGO_URL si viene definido (CI); si no, el de tests/test_env.sh (Mongo de Docker con contraseña).
@@ -85,6 +86,17 @@ run_battery() {   # $1 = nombre, $2 = DB, resto = VAR=valor para la prueba
     echo "::endgroup::"
   fi
 }
+
+if [[ $SPECIAL -eq 1 && -z "${BOLTREX_SKIP_UNIT:-}" ]]; then
+  echo "== Pruebas unitarias (pytest, sin Mongo)"
+  start=$SECONDS
+  if "$PY" -m pytest > "$LOGDIR/unit.log" 2>&1; then
+    add_result "✅ unit (pytest): $(tail -1 "$LOGDIR/unit.log" | sed -E 's/=//g; s/^ +| +$//g') ($((SECONDS - start)) s)"
+  else
+    FAILED=1; add_result "❌ unit (pytest): $(tail -1 "$LOGDIR/unit.log" | sed -E 's/=//g; s/^ +| +$//g')"
+    grep -E "^(FAILED|ERROR)" "$LOGDIR/unit.log" | head -30
+  fi
+fi
 
 echo "== Fase principal (${#MAIN[@]} baterías)"
 start_backend boltrex_cimaintest
