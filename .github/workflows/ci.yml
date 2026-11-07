@@ -128,6 +128,13 @@ jobs:
       - name: Build de la imagen Docker del frontend
         run: docker build -t boltrex-frontend:ci -f frontend/Dockerfile .
 
+      - name: nginx acepta la configuración (normal y con IP real para túnel / producción)
+        run: |
+          # --add-host: nginx resuelve "backend" al cargar la configuración.
+          docker run --rm --add-host backend:127.0.0.1 boltrex-frontend:ci nginx -t
+          docker run --rm --add-host backend:127.0.0.1 \
+            -v "$PWD/deploy/nginx/realip.conf:/etc/nginx/snippets/realip.conf:ro" boltrex-frontend:ci nginx -t
+
   imagenes:
     name: Imagen Docker del backend
     runs-on: ubuntu-latest

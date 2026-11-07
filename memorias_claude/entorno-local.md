@@ -16,3 +16,8 @@ Estado al 2026-11-03:
 
 **Why:** evita repetir el diagnóstico del entorno.
 **How to apply:** preferir el camino Docker de [[LEVANTAR_PROYECTO]]; el usuario prefiere ejecutar él mismo los comandos de instalación/arranque.
+
+## Probar la app real en un navegador (sin tocar datos) — 2026-11-07
+- Hay Google Chrome en `/Applications/Google Chrome.app` y el módulo `ws` en `frontend/node_modules`: se puede abrir el frontend de Docker (`http://localhost:3000`) en Chrome headless (`--remote-debugging-port`) y controlarlo por CDP. Con `Fetch.enable` (`*/api/*`) se **simulan** las respuestas de la API (p. ej. `/auth/me` con un admin de prueba + `localStorage.token`), así no se usa el backend ni datos ni contraseñas reales. Si la app llama al backend en otro origen, responder también los OPTIONS con `Access-Control-Allow-Headers: Authorization, Content-Type`.
+- Sirve para reproducir problemas visuales/de interacción (`Input.dispatchMouseEvent` mouseWheel/clics, `Runtime.evaluate` para medir). Se usó para el «el menú no baja con la rueda»: en Chrome funcionaba en todos los estados → era cómo lo estaba usando el usuario (no había error).
+- Playwright NO está instalado (solo sus navegadores en `~/Library/Caches/ms-playwright`): para probar WebKit/Firefox habría que instalar `playwright-core` en el scratchpad.

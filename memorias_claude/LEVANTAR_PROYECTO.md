@@ -231,6 +231,15 @@ Abre http://localhost:3000. `REACT_APP_BACKEND_URL` es **obligatoria** en este m
 
 Nunca contra la BD real `boltrex`: cada batería usa una BD temporal `boltrex_<x>test` y un backend de prueba en el puerto **8001**.
 
+**Compartir la app por internet para pruebas (ngrok, 2026-11-08):**
+```bash
+docker compose up -d --build backend frontend
+docker compose exec backend python tools/crear_rol_pruebas.py          # rol «Supervisor de pruebas» + usuarios (contraseñas temporales)
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.tunnel.yml up -d frontend   # IP real de cada visitante
+ngrok http 3000                                                          # link https://….ngrok-free.app
+# al terminar: Ctrl+C en ngrok y  docker compose up -d frontend
+```
+
 **Pruebas unitarias (fase 7):** `backend/.venv/bin/python -m pytest` desde la raíz (169 pruebas, ~3 s, no necesita Mongo ni el backend).
 
 **Forma corta (P2.24, recomendada):** `scripts/run_all_tests.sh` — corre primero las unitarias (pytest) y después prepara las BD, arranca/apaga el backend de prueba, corre las baterías de la fase principal + `session` y `login_throttle` (con sus tiempos cortos) + 4 del frontend sin navegador (`frontend_access`, `frontend_syntax`, `frontend_format`, `frontend_lint`), muestra un resumen ✅/❌, guarda logs en `.test-logs/` y borra las BD `boltrex_ci*test`. Con argumentos corre solo esas baterías (`scripts/run_all_tests.sh credit cash`). Es lo mismo que corre el CI de GitHub Actions (`.github/workflows/ci.yml`). Funciona con el bash 3.2 de macOS.
