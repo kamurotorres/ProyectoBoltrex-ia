@@ -51,7 +51,8 @@ check('ninguna <Route path="..."> suelta fuera del mapa (salvo login, cambio de 
   [...appSrc.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]).every((p) => ['/login', '/', '*'].includes(p)),
   [...appSrc.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]));
 check('el inicio "/" pasa por HomeRoute', /<Route index element=\{<HomeRoute>/.test(appSrc));
-check('el menú usa el mapa (sin lista propia)', /allowedSections\(user\)/.test(layoutSrc) && !/moduleSlug:/.test(layoutSrc));
+check('el menú usa el mapa (sin lista propia)', /menuGroups\(user\)/.test(layoutSrc) && !/moduleSlug:/.test(layoutSrc)
+  && /allowedSections\(user\)/.test(fs.readFileSync(path.join(FE, 'src', 'lib', 'access.js'), 'utf8')));
 const backendSlugs = [...rbacSrc.matchAll(/"slug":\s*"([a-z-]+)"/g)].map((m) => m[1]);
 const used = A.SECTIONS.flatMap((s) => A.sectionModules(s));
 check('todo módulo del mapa existe en el backend (rbac.DEFAULT_MODULES)', used.every((m) => backendSlugs.includes(m)),
@@ -75,8 +76,8 @@ check('admin ve todas las secciones', A.allowedSections(admin).length === A.SECT
 check('Auditoría y Config. Sistema: solo Administrador (aunque tenga todos los permisos)',
   !A.canAccessSection(gestor, sec('/audit')) && !A.canAccessSection(gestor, sec('/settings')) &&
   A.canAccessSection(admin, sec('/audit')) && A.canAccessSection(admin, sec('/settings')));
-check('cajero: solo POS, clientes y productos',
-  JSON.stringify(A.allowedSections(cajero).map((s) => s.path)) === JSON.stringify(['/products', '/clients', '/pos']),
+check('cajero: solo POS, clientes y productos (en el orden del menú)',
+  JSON.stringify(A.allowedSections(cajero).map((s) => s.path)) === JSON.stringify(['/pos', '/clients', '/products']),
   A.allowedSections(cajero).map((s) => s.path));
 check('cajero no entra a Usuarios por URL', !A.canAccessSection(cajero, sec('/users')));
 check('inicio del cajero (sin Dashboard) → POS', A.homePath(cajero) === '/pos', A.homePath(cajero));
@@ -88,6 +89,32 @@ check('Roles y Permisos con solo el permiso "roles" (como el backend)', A.canAcc
 check('ruta inexistente → sin acceso', A.findSection('/no-existe') === null && !A.canAccessSection(admin, null));
 check('ruta con barra final se reconoce', A.findSection('/products/') && A.findSection('/products/').path === '/products');
 check('usuario nulo no ve nada', A.allowedSections(null).length === 0 && !A.can(null, 'products'));
+
+// --- 2b. Menú por grupos (rama menu-por-grupos) ---
+const groupKeys = A.MENU_GROUPS.map((g) => g.key);
+check('toda sección tiene un grupo del menú', A.SECTIONS.every((s) => groupKeys.includes(s.group)),
+  A.SECTIONS.filter((s) => !groupKeys.includes(s.group)).map((s) => s.path));
+check('las secciones van en el orden de los grupos (sin mezclarse)',
+  A.SECTIONS.every((s, i) => i === 0 || groupKeys.indexOf(A.SECTIONS[i - 1].group) <= groupKeys.indexOf(s.group)));
+check('Configuración: toda sección tiene subgrupo (Catálogos / Sistema)',
+  A.SECTIONS.filter((s) => s.group === 'config').every((s) => ['Catálogos', 'Sistema'].includes(s.subgroup)));
+const adminMenu = A.menuGroups(admin);
+check('admin: Dashboard · Ventas · Compras e inventario · Informes · Configuración',
+  JSON.stringify(adminMenu.map((g) => g.label)) === JSON.stringify([null, 'Ventas', 'Compras e inventario', 'Informes', 'Configuración']),
+  adminMenu.map((g) => g.label));
+check('admin: el menú tiene todas las secciones', adminMenu.reduce((n, g) => n + g.sections.length, 0) === A.SECTIONS.length);
+check('Configuración se puede plegar; los demás grupos no', adminMenu.filter((g) => g.collapsible).map((g) => g.key).join() === 'config');
+check('Configuración: Catálogos primero, Sistema después',
+  JSON.stringify(adminMenu.find((g) => g.key === 'config').subgroups.map((sg) => sg.label)) === JSON.stringify(['Catálogos', 'Sistema']));
+const cajeroMenu = A.menuGroups(cajero);
+check('cajero: solo ve sus grupos (sin títulos vacíos)',
+  JSON.stringify(cajeroMenu.map((g) => [g.label, g.sections.map((s) => s.path)])) === JSON.stringify([['Ventas', ['/pos', '/clients']], ['Compras e inventario', ['/products']]]),
+  JSON.stringify(cajeroMenu.map((g) => [g.label, g.sections.map((s) => s.path)])));
+check('sin permisos: menú vacío', A.menuGroups(nadie).length === 0);
+check('Config. Tickets y Config. Sistema con íconos distintos', sec('/ticket-config').icon !== sec('/settings').icon);
+const layoutIcons = (layoutSrc.match(/const ICONS = \{([^}]*)\}/) || [])[1] || '';
+check('el menú conoce el ícono de cada sección', A.SECTIONS.every((s) => new RegExp(`\\b${s.icon}\\b`).test(layoutIcons)),
+  A.SECTIONS.filter((s) => !new RegExp(`\\b${s.icon}\\b`).test(layoutIcons)).map((s) => s.icon));
 
 // --- 3. Solo lectura ---
 check('lector en Productos → solo lectura', A.isReadOnly(lector, sec('/products')));

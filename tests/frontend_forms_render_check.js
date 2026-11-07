@@ -25,6 +25,8 @@ for (const k of ['HTMLElement', 'HTMLInputElement', 'HTMLTextAreaElement', 'HTML
 }
 // Node ya trae Event/CustomEvent propios, que jsdom no acepta en dispatchEvent: se usan los de jsdom.
 for (const k of ['Event', 'CustomEvent', 'EventTarget']) global[k] = W[k];
+// localStorage del navegador simulado (Node 22+ trae uno propio que no es el de jsdom).
+Object.defineProperty(global, 'localStorage', { value: W.localStorage, configurable: true, writable: true });
 if (!W.PointerEvent) W.PointerEvent = class PointerEvent extends W.MouseEvent {};   // jsdom 16 no lo trae
 class RO { observe() {} unobserve() {} disconnect() {} }
 global.ResizeObserver = RO; W.ResizeObserver = RO;
@@ -472,6 +474,48 @@ scenario('Formas de pago y listas de precios: nombre vacío → error; con nombr
   await click(byTestId('save-price-list-button'));
   check(calls.length === 1 && same(calls[0].data, { name: 'mayorista', description: '', is_active: true }),
     'lista de precios: POST con el formato de antes', JSON.stringify(calls));
+});
+
+scenario('Menú: grupos (Dashboard · Ventas · Compras · Informes · Configuración plegable) y «Mi cuenta»', async () => {
+  const Layout = page('components/Layout.js');
+  const { AuthContext } = MOCKS['@/auth/AuthProvider'];
+  const all = Object.fromEntries(['dashboard', 'pos', 'cash', 'invoices', 'fios', 'returns', 'clients', 'purchases', 'inventory', 'products',
+    'suppliers', 'reports', 'categories', 'price-lists', 'payment-methods', 'adjustment-reasons', 'users', 'roles', 'ticket-config', 'import']
+    .map((m) => [m, { read: true, create: true, update: true, delete: true }]));
+  const admin = { email: 'ana@tienda.com', full_name: 'Ana Ruiz', first_name: 'Ana', last_name: 'Ruiz', roles: ['Administrador'], permissions: all };
+  let loggedOut = 0;
+  const WithUser = () => React.createElement(AuthContext.Provider, { value: { user: admin, logout: () => { loggedOut++; }, logoutAll: async () => {} } },
+    React.createElement(Layout));
+  try { W.localStorage.removeItem('boltrex.menu.configOpen'); } catch { /* sin almacenamiento */ }
+  await mount(WithUser, { '/alerts': new Error('sin alertas en la prueba') }, { path: '/*', url: '/pos' });
+  const groupText = (key) => (byTestId(`nav-group-${key}`) || {}).textContent || '';
+  const order = [...document.querySelectorAll('[data-testid^="nav-group-"]')].filter((el) => !el.dataset.testid.includes('toggle'))
+    .map((el) => el.dataset.testid.replace('nav-group-', ''));
+  check(order.join(',') === 'inicio,ventas,compras,informes,config', 'menú: grupos en orden', order.join(','));
+  check(groupText('ventas').startsWith('VentasPOSCajaFacturasFios (Créditos)DevolucionesClientes'), 'menú: Ventas con sus secciones', groupText('ventas'));
+  check(groupText('compras') === 'Compras e inventarioComprasInventarioProductosProveedores', 'menú: Compras e inventario', groupText('compras'));
+  check(!byTestId('nav-usuarios') && byTestId('nav-group-toggle-config').getAttribute('aria-expanded') === 'false',
+    'menú: Configuración empieza plegada');
+  await click(byTestId('nav-group-toggle-config'));
+  check(byTestId('nav-usuarios') && groupText('config').includes('Catálogos') && groupText('config').includes('Sistema')
+    && groupText('config').indexOf('Categorías') < groupText('config').indexOf('Usuarios'), 'menú: al tocar, Configuración se abre con Catálogos y Sistema');
+  let saved = null; try { saved = W.localStorage.getItem('boltrex.menu.configOpen'); } catch { /* */ }
+  check(saved === '1', 'menú: recuerda que la dejaste abierta', saved);
+  await click(byTestId('nav-group-toggle-config'));
+  check(!byTestId('nav-usuarios'), 'menú: se vuelve a plegar');
+  // Si estás en una pantalla de Configuración, el grupo se abre solo.
+  await mount(WithUser, { '/alerts': new Error('x') }, { path: '/*', url: '/users' });
+  check(!!byTestId('nav-usuarios'), 'menú: en una pantalla de Configuración el grupo se abre solo');
+  // «Mi cuenta»
+  const btn = must(byTestId('user-menu-button'), 'botón Mi cuenta');
+  check(btn.textContent.startsWith('AR'), 'Mi cuenta: iniciales del usuario', btn.textContent);
+  check(!document.body.textContent.includes('Cerrar sesión en todos los equipos'), 'Mi cuenta: las opciones ya no están sueltas en la pantalla');
+  await act(async () => { btn.dispatchEvent(new W.PointerEvent('pointerdown', { bubbles: true, button: 0, ctrlKey: false })); });
+  await settle(30);
+  check(byTestId('change-password-button') && byTestId('logout-all-button') && byTestId('logout-button')
+    && (byTestId('user-menu-name') || {}).textContent === 'Ana Ruiz', 'Mi cuenta: nombre, cambiar contraseña, cerrar en todos y salir');
+  await click(byTestId('sidebar-logout-button'));
+  check(loggedOut === 1, 'menú lateral: «Cerrar sesión» al final funciona');
 });
 
 (async () => {
