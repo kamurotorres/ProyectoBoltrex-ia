@@ -18,6 +18,7 @@ import { AdjustmentDialog, AdjustmentsTab, signedMoney } from '@/components/inve
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { API } from '@/api/client';
+import { dateTime, money } from '@/lib/format';
 
 const Inventory = () => {
   // P1.18: stock y movimientos paginados en el servidor; los totales los calcula el servidor
@@ -95,7 +96,7 @@ const Inventory = () => {
             <CardTitle className="text-sm font-medium text-muted-foreground">Valor Total Inventario</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-mono">${totalValue.toFixed(2)}</div>
+            <div className="text-3xl font-bold font-mono">{money(totalValue)}</div>
           </CardContent>
         </Card>
 
@@ -128,9 +129,9 @@ const Inventory = () => {
             <CardTitle className="text-sm font-medium text-muted-foreground">Pérdidas por ajustes del mes</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-mono text-red-400">${Number(adjMonth.loss_value || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}</div>
+            <div className="text-3xl font-bold font-mono text-red-400">{money(adjMonth.loss_value)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              {adjMonth.adjustments || 0} ajuste(s) · sobrantes ${Number(adjMonth.gain_value || 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })} · neto {signedMoney(adjMonth.net_value || 0)}
+              {adjMonth.adjustments || 0} ajuste(s) · sobrantes {money(adjMonth.gain_value)} · neto {signedMoney(adjMonth.net_value || 0)}
             </p>
           </CardContent>
         </Card>
@@ -193,8 +194,8 @@ const Inventory = () => {
                     <TableCell className="text-right font-mono text-muted-foreground">
                       {product.min_stock_effective}{product.min_stock == null ? ' (general)' : ''}
                     </TableCell>
-                    <TableCell className="text-right font-mono">${product.purchase_price.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-mono">${(product.purchase_price * product.stock).toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono">{money(product.purchase_price)}</TableCell>
+                    <TableCell className="text-right font-mono">{money((product.purchase_price * product.stock))}</TableCell>
                     <TableCell className="text-center">
                       {product.stock_status === 'out' ? (
                         <span className="text-xs px-2 py-1 rounded-full bg-destructive text-destructive-foreground">Sin Stock</span>
@@ -263,7 +264,7 @@ const Inventory = () => {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{movement.created_by}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(movement.created_at).toLocaleString('es-ES')}
+                      {dateTime(movement.created_at)}
                     </TableCell>
                   </TableRow>
                 ))}

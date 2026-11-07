@@ -13,6 +13,7 @@ CREDIT_ONLY_ADMIN = ("Solo un administrador puede asignar o cambiar el plazo y e
 from core.pagination import page_params, paginate, search_filter
 from models.auth import User
 from models.entities import Client, ClientCreate, ClientUpdate, DocumentType, DocumentTypeCreate, Supplier, SupplierCreate, SupplierUpdate
+from core.money import money
 
 router = APIRouter(tags=["Clients"])
 # ==================== DOCUMENT TYPES ====================
@@ -133,7 +134,7 @@ async def delete_client(document_number: str, document_type: Optional[str] = Non
         ]).to_list(1)
         reason = f"tiene {invoices_count} factura(s)"
         if pending:
-            reason += f" y un saldo pendiente en Fios de ${pending[0]['balance']:,.0f}".replace(",", ".")
+            reason += f" y un saldo pendiente en Fios de {money(pending[0]['balance'])}"
         raise HTTPException(
             status_code=400,
             detail=f"No se puede eliminar el cliente '{full}' ({label}): {reason}. "

@@ -17,7 +17,7 @@ import { Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
-import { money2 as money } from '@/lib/format';
+import { money2 as money, dateTime } from '@/lib/format';
 import { API } from '@/api/client';
 
 const STATUS = {
@@ -195,7 +195,7 @@ const Reports = () => {
                               </span>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {new Date(invoice.created_at).toLocaleString('es-ES')}
+                              {dateTime(invoice.created_at)}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -227,7 +227,7 @@ const Reports = () => {
                     <CardTitle className="text-sm font-medium text-muted-foreground">Valor Inventario</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold font-mono">${inventoryReport.summary.total_value.toFixed(2)}</div>
+                    <div className="text-3xl font-bold font-mono">{money(inventoryReport.summary.total_value)}</div>
                   </CardContent>
                 </Card>
 
@@ -267,9 +267,9 @@ const Reports = () => {
                             <TableCell>{product.name}</TableCell>
                             <TableCell>{product.category}</TableCell>
                             <TableCell className="text-right font-mono">{product.stock}</TableCell>
-                            <TableCell className="text-right font-mono">${product.purchase_price.toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-mono">{money(product.purchase_price)}</TableCell>
                             <TableCell className="text-right font-mono font-bold">
-                              ${(product.purchase_price * product.stock).toFixed(2)}
+                              {money((product.purchase_price * product.stock))}
                             </TableCell>
                           </TableRow>
                         ))}

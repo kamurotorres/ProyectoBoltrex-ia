@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { FieldError } from '@/components/form/Field';
+import { money } from '@/lib/format';
 
 // Extraído de Purchases.js (mantenimiento fase 5). Fase 6: el estado del formulario llega en `purchaseForm`
 // (features/purchases/usePurchaseForm) en vez de 31 props sueltas; los errores salen debajo de cada parte.
@@ -113,7 +114,7 @@ export default function PurchaseDialog({ purchaseForm, dialogDesc, dialogMode, d
                             </div>
                             <div className="text-right flex items-center gap-3">
                               <div>
-                                <div className="text-sm font-mono">${product.purchase_price?.toLocaleString()}</div>
+                                <div className="text-sm font-mono">{money(product.purchase_price)}</div>
                                 <div className="text-xs text-muted-foreground">Stock: {product.stock}</div>
                               </div>
                               {inItems && <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">x{inItems.quantity}</span>}
@@ -194,7 +195,7 @@ export default function PurchaseDialog({ purchaseForm, dialogDesc, dialogMode, d
                             </TableCell>
                             <TableCell>
                               {isReadonly ? (
-                                <div className="text-center font-mono">${parseFloat(item.unit_cost).toLocaleString()}</div>
+                                <div className="text-center font-mono">{money(item.unit_cost)}</div>
                               ) : (
                                 <div className="flex items-center justify-center gap-1">
                                   <span className="text-muted-foreground">$</span>
@@ -213,7 +214,7 @@ export default function PurchaseDialog({ purchaseForm, dialogDesc, dialogMode, d
                               )}
                             </TableCell>
                             <TableCell className="text-right font-mono font-bold">
-                              ${(parseFloat(item.total) || 0).toLocaleString()}
+                              {money(item.total)}
                             </TableCell>
                             {!isReadonly && (
                               <TableCell>
@@ -231,7 +232,7 @@ export default function PurchaseDialog({ purchaseForm, dialogDesc, dialogMode, d
                     <div className="text-right">
                       <span className="text-muted-foreground mr-3">Total Compra:</span>
                       <span className="text-2xl font-bold font-mono" data-testid="purchase-total">
-                        ${calculateTotal().toLocaleString()}
+                        {money(calculateTotal())}
                       </span>
                     </div>
                   </div>

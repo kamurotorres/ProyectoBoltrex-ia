@@ -8,13 +8,14 @@ import { getErrorMessage } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { BarList, ChartCard, ColumnChart, DataTable, money } from '@/components/charts/Charts';
 import { api } from '@/api/client';
+import { localYmd, number } from '@/lib/format';
 
 // Dashboard (backlog P2.29). Un vendedor ve solo sus ventas; el Administrador ve toda la
 // tienda y puede filtrar por vendedor. Las cifras usan las mismas reglas que Reportes
 // (ventas netas por fecha de la venta, días locales). Ganancia = (precio de venta sin IVA −
 // precio de compra) × cantidad, con el costo guardado en cada venta.
 
-const localDate = (d) => d.toLocaleDateString('en-CA'); // AAAA-MM-DD en hora local
+const localDate = localYmd; // AAAA-MM-DD en hora local (lib/format)
 const PERIODS = [
   { key: 'today', label: 'Hoy' },
   { key: '7d', label: '7 días' },
@@ -54,7 +55,7 @@ function Delta({ value }) {
   return (
     <span className={`inline-flex items-center gap-0.5 text-xs ${cls}`}>
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-      {up ? '+' : ''}{value.toLocaleString('es-CO')} %
+      {up ? '+' : ''}{number(value)} %
       <span className="text-muted-foreground ml-1">vs. periodo anterior</span>
     </span>
   );
@@ -165,9 +166,9 @@ const Dashboard = () => {
       <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
         <Kpi title="Ventas netas" value={money(k.net_sales)} delta={c.net_sales} testId="kpi-net-sales"
              note={k.returns_total ? `Devoluciones: −${money(k.returns_total)}` : null} />
-        <Kpi title="Facturas" value={k.invoices.toLocaleString('es-CO')} delta={c.invoices} testId="kpi-invoices" />
+        <Kpi title="Facturas" value={number(k.invoices)} delta={c.invoices} testId="kpi-invoices" />
         <Kpi title="Ticket promedio" value={money(k.avg_ticket)} delta={c.avg_ticket} testId="kpi-avg-ticket" />
-        <Kpi title="Unidades vendidas" value={k.units.toLocaleString('es-CO')} delta={c.units} testId="kpi-units" />
+        <Kpi title="Unidades vendidas" value={number(k.units)} delta={c.units} testId="kpi-units" />
         <Kpi title="Ganancia bruta" value={money(k.profit)} delta={c.profit} testId="kpi-profit"
              note={k.invoices_without_cost ? `${k.invoices_without_cost} venta(s) antiguas sin costo registrado no se incluyen` : 'Precio de venta (sin IVA) − precio de compra'} />
         <Kpi title="Cartera Fios" value={money(data.credit.balance)} testId="kpi-credit"
@@ -209,7 +210,7 @@ const Dashboard = () => {
             items={data.payments}
             value={(p) => p.net}
             label={(p) => p.method}
-            detail={(p) => `${money(p.net)} · ${p.share.toLocaleString('es-CO')} %`}
+            detail={(p) => `${money(p.net)} · ${number(p.share)} %`}
             ariaLabel="Ventas por forma de pago"
           />
         </ChartCard>

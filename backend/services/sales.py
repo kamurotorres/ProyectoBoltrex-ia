@@ -15,6 +15,7 @@ from repositories.clients import resolve_client
 from core.pricing import unit_price_for
 from core.cash import add_movement, session_for_money
 from core import credit
+from core.money import money
 
 
 async def create_sale(invoice_data: InvoiceCreate, current_user: User):
@@ -172,7 +173,7 @@ async def create_sale(invoice_data: InvoiceCreate, current_user: User):
         pago = ("de contado (" + str(invoice_dict.get("payment_method")) + ")") if invoice_data.payment_status == "pagado" \
             else f"a crédito (vence {(due_date - timedelta(minutes=offset)).strftime('%d/%m/%Y')})"
         await audit.record("invoices", "create", entity_id=invoice_number, entity_name=client_name,
-                           summary=f"Venta {invoice_number} a '{client_name}' por {total:,.0f} {pago}, "
+                           summary=f"Venta {invoice_number} a '{client_name}' por {money(total)} {pago}, "
                                    f"{sum(i['quantity'] for i in processed_items)} unidad(es)",
                            after=invoice_dict, session=session)
 

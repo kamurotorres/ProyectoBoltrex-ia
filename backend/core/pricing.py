@@ -13,6 +13,7 @@ import math
 from typing import Iterable, List, Optional
 
 from core.errors import BusinessError, DomainError
+from core.money import money
 
 DEFAULT_PRICE_LIST = "default"
 
@@ -59,8 +60,8 @@ def pricing_problem(purchase_price, tax_rate, prices: Optional[Iterable]) -> Opt
             if price <= 0:
                 return f"El precio de la lista '{name}' debe ser mayor a 0."
             if price < cost:
-                return (f"El precio de venta de la lista '{name}' (${price:,.2f}) no puede ser menor que el "
-                        f"precio de compra (${cost:,.2f}).")
+                return (f"El precio de venta de la lista '{name}' ({money(price)}) no puede ser menor que el "
+                        f"precio de compra ({money(cost)}).")
         if DEFAULT_PRICE_LIST not in seen:
             return (f"El precio de la lista '{DEFAULT_PRICE_LIST}' es obligatorio: es el que se cobra cuando el "
                     f"cliente tiene una lista para la que el producto no tiene precio.")

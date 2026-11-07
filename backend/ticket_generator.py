@@ -6,6 +6,7 @@ from reportlab.pdfgen import canvas
 from io import BytesIO
 from datetime import datetime
 import textwrap
+from core.money import money
 
 class TicketPDFGenerator:
     """Generador de tickets PDF para impresoras térmicas"""
@@ -171,13 +172,13 @@ class TicketPDFGenerator:
 
             # Total
             total = item.get('total', 0)
-            c.drawRightString(self.width - self.margin, self.current_y, f"${total:,.2f}")
+            c.drawRightString(self.width - self.margin, self.current_y, money(total))
 
             # Precio unitario (línea adicional más pequeña)
             self.current_y -= 3 * mm
             c.setFont("Helvetica", 6)
             unit_price = item.get('unit_price', 0)
-            c.drawString(self.margin + 8 * mm, self.current_y, f"  @${unit_price:,.2f} c/u")
+            c.drawString(self.margin + 8 * mm, self.current_y, f"  @{money(unit_price)} c/u")
             c.setFont("Helvetica", 7)
 
     def _draw_returns(self, c, returns):
@@ -211,13 +212,13 @@ class TicketPDFGenerator:
 
                 # Total con signo negativo
                 total = item.get('total', 0)
-                c.drawRightString(self.width - self.margin, self.current_y, f"-${total:,.2f}")
+                c.drawRightString(self.width - self.margin, self.current_y, f"-{money(total)}")
 
                 # Precio unitario (línea adicional más pequeña)
                 self.current_y -= 3 * mm
                 c.setFont("Helvetica", 6)
                 unit_price = item.get('unit_price', 0)
-                c.drawString(self.margin + 8 * mm, self.current_y, f"  @${unit_price:,.2f} c/u (DEV)")
+                c.drawString(self.margin + 8 * mm, self.current_y, f"  @{money(unit_price)} c/u (DEV)")
                 c.setFont("Helvetica", 7)
 
     def _draw_totals(self, c, invoice_data):
@@ -231,18 +232,18 @@ class TicketPDFGenerator:
         # Subtotal
         self.current_y -= self.line_height * 1.5
         c.drawString(self.margin, self.current_y, "SUBTOTAL:")
-        c.drawRightString(self.width - self.margin, self.current_y, f"${subtotal:,.2f}")
+        c.drawRightString(self.width - self.margin, self.current_y, money(subtotal))
 
         # IVA
         self.current_y -= self.line_height
         c.drawString(self.margin, self.current_y, "IVA:")
-        c.drawRightString(self.width - self.margin, self.current_y, f"${total_tax:,.2f}")
+        c.drawRightString(self.width - self.margin, self.current_y, money(total_tax))
 
         # Total
         self.current_y -= self.line_height * 1.2
         c.setFont("Helvetica-Bold", 10)
         c.drawString(self.margin, self.current_y, "TOTAL:")
-        c.drawRightString(self.width - self.margin, self.current_y, f"${total:,.2f}")
+        c.drawRightString(self.width - self.margin, self.current_y, money(total))
 
     def _draw_footer(self, c):
         """Dibujar pie de página"""

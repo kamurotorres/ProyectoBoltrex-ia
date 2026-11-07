@@ -54,7 +54,7 @@ export default function CartSection({ canCreate, cart, cashState, creditStatus, 
                         <p className="text-xs text-muted-foreground font-mono">{item.barcode}</p>
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
-                        ${item.unit_price.toLocaleString()}
+                        {money0(item.unit_price)}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-center gap-2">
@@ -98,13 +98,13 @@ export default function CartSection({ canCreate, cart, cashState, creditStatus, 
                         </div>
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
-                        ${item.subtotal.toLocaleString()}
+                        {money0(item.subtotal)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono text-sm text-muted-foreground">
-                        ${item.tax_amount.toLocaleString()}
+                        {money0(item.tax_amount)}
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold">
-                        ${item.total.toLocaleString()}
+                        {money0(item.total)}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <Button
@@ -214,20 +214,20 @@ export default function CartSection({ canCreate, cart, cashState, creditStatus, 
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span className="font-mono" data-testid="cart-subtotal">
-                    ${totals.subtotal.toLocaleString('es-CO', {minimumFractionDigits: 2})}
+                    {money0(totals.subtotal)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">IVA Total:</span>
                   <span className="font-mono" data-testid="cart-tax">
-                    ${totals.totalTax.toLocaleString('es-CO', {minimumFractionDigits: 2})}
+                    {money0(totals.totalTax)}
                   </span>
                 </div>
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-2xl font-bold">
                     <span>TOTAL:</span>
                     <span className="font-mono text-primary" data-testid="cart-total">
-                      ${totals.total.toLocaleString('es-CO', {minimumFractionDigits: 2})}
+                      {money0(totals.total)}
                     </span>
                   </div>
                 </div>

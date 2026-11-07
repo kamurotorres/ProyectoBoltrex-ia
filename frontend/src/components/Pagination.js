@@ -2,12 +2,13 @@ import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PAGE_SIZES } from '@/hooks/usePaginatedList';
+import { number } from '@/lib/format';
 
 // Barra de paginación común para los listados del servidor (backlog P1.18).
 const Pagination = ({ page, pages, total, pageSize, loading, onPageChange, onPageSizeChange, noun = 'registro(s)', testId = 'pagination' }) => (
   <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-3 text-sm" data-testid={testId}>
     <span className="text-muted-foreground">
-      {total.toLocaleString('es-CO')} {noun} · página {Math.min(page, pages)} de {pages}
+      {number(total)} {noun} · página {Math.min(page, pages)} de {pages}
     </span>
     <div className="flex items-center gap-2">
       <label className="flex items-center gap-1 text-muted-foreground">

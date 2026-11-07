@@ -9,6 +9,7 @@ from models.auth import User
 from models.entities import PurchaseCreate, PurchaseUpdate
 
 from core import audit
+from core.money import money
 
 
 
@@ -32,7 +33,7 @@ async def create_purchase(purchase_data: PurchaseCreate, current_user: User):
         await audit.record("purchases", "create", entity_id=purchase_dict["purchase_number"],
                            entity_name=purchase_data.supplier_name,
                            summary=f"Creó la compra {purchase_dict['purchase_number']} a '{purchase_data.supplier_name}' "
-                                   f"({len(purchase_dict['items'])} producto(s), total {total:,.0f})",
+                                   f"({len(purchase_dict['items'])} producto(s), total {money(total)})",
                            after=purchase_dict, session=session)
         return purchase_dict
 

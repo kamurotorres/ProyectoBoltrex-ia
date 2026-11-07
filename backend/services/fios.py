@@ -17,6 +17,7 @@ from core import audit
 from repositories.clients import resolve_client, invoices_of_client_query
 from core.cash import add_movement, session_for_money
 from core.pagination import paginate_pipeline
+from core.money import money
 
 
 FIOS_FILTERS = {
@@ -184,7 +185,7 @@ async def register_payment(invoice_number: str, payment: FioPaymentCreate, curre
         # Validate payment amount
         current_balance = invoice.get("balance", invoice["total"])
         if payment.amount > current_balance:
-            raise BusinessError(f"El monto del abono (${payment.amount:,.2f}) excede el saldo pendiente (${current_balance:,.2f})")
+            raise BusinessError(f"El monto del abono ({money(payment.amount)}) excede el saldo pendiente ({money(current_balance)})")
 
         # P2.31: caja de quien recibe el abono.
         cash_session_id = await session_for_money(current_user.email, "fio_payment", session=session)
@@ -222,8 +223,8 @@ async def register_payment(invoice_number: str, payment: FioPaymentCreate, curre
         await invoices_repo.update(invoice_number, update_data, session=session)
 
         await audit.record("fios", "create", entity_id=invoice_number, entity_name=invoice.get("client_name"),
-                           summary=f"Abono de {payment.amount:,.0f} ({payment.payment_method}) a la factura {invoice_number}; "
-                                   f"saldo {current_balance:,.0f} → {new_balance:,.0f}"
+                           summary=f"Abono de {money(payment.amount)} ({payment.payment_method}) a la factura {invoice_number}; "
+                                   f"saldo {money(current_balance)} → {money(new_balance)}"
                                    + (" (pagada)" if new_balance <= 0 else ""),
                            before={k: invoice.get(k) for k in update_data}, after=update_data,
                            details=payment_dict, session=session)

@@ -15,7 +15,7 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import ExportMenu from '@/components/ExportMenu';
 import { notifyDataChanged } from '@/lib/events';
-import { money, signedMoney } from '@/lib/format';
+import { money, signedMoney, dateTime } from '@/lib/format';
 import { API, api } from '@/api/client';
 import { useServerSearch } from '@/hooks/useServerSearch';
 
@@ -329,7 +329,7 @@ export const AdjustmentsTab = ({ canAdjust, onNew, refreshKey }) => {
             {list.items.map((a) => (
               <TableRow key={a.adjustment_number}>
                 <TableCell className="font-mono">{a.adjustment_number}</TableCell>
-                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(a.created_at).toLocaleString('es-CO')}</TableCell>
+                <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{dateTime(a.created_at)}</TableCell>
                 <TableCell>
                   {a.kind_label || KIND_LABELS[a.kind]} · {a.reason}
                   {a.notes && <div className="text-xs text-muted-foreground truncate max-w-xs">{a.notes}</div>}
@@ -365,7 +365,7 @@ export const AdjustmentsTab = ({ canAdjust, onNew, refreshKey }) => {
               <DialogHeader>
                 <DialogTitle>Ajuste {detail.adjustment_number}</DialogTitle>
                 <DialogDescription>
-                  {detail.kind_label || KIND_LABELS[detail.kind]} · {detail.reason} · {new Date(detail.created_at).toLocaleString('es-CO')} · {detail.created_by_name || detail.created_by}
+                  {detail.kind_label || KIND_LABELS[detail.kind]} · {detail.reason} · {dateTime(detail.created_at)} · {detail.created_by_name || detail.created_by}
                 </DialogDescription>
               </DialogHeader>
               {detail.notes && <p className="text-sm p-3 rounded-md bg-muted/40">{detail.notes}</p>}

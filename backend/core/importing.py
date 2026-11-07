@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import UploadFile
 
 from core.errors import BusinessError
+from core.money import number as fmt_number   # «number» ya es la variable del número de fila
 
 MAX_ROWS = 20000
 Row = Dict[str, Any]
@@ -100,7 +101,7 @@ def read_table(file: UploadFile) -> Tuple[List[str], List[Tuple[int, Row]]]:
         row = {col: (cells[i] if i < len(cells) else None) for i, col in enumerate(header) if col}
         rows.append((number, row))
         if len(rows) > MAX_ROWS:
-            raise BusinessError(f"El archivo tiene más de {MAX_ROWS:,} filas: divídelo en varios.".replace(",", "."))
+            raise BusinessError(f"El archivo tiene más de {fmt_number(MAX_ROWS)} filas: divídelo en varios.")
     return [h for h in header if h], rows
 
 

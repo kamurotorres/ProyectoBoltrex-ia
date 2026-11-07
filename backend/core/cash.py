@@ -23,6 +23,7 @@ from core.counters import Counter
 from core.database import db
 from repositories import cash as cash_repo
 from core.dates import now_utc
+from core.money import money  # noqa: F401
 
 CASH_METHOD = "Efectivo"
 CASH_COUNTER = Counter("cash_session_id", "CAJ", "cash_sessions", "session_id")
@@ -46,8 +47,7 @@ def is_cash(method: Optional[str]) -> bool:
     return (method or "").strip().lower() == CASH_METHOD.lower()
 
 
-def money(v: float) -> str:
-    return "$" + f"{float(v or 0):,.0f}".replace(",", ".")
+# money: formato único del sistema (core/money.py); se re-exporta aquí porque otros módulos lo importan de core.cash.
 
 
 # ---------------------------------------------------------------- configuración

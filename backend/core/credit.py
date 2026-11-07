@@ -22,6 +22,7 @@ from core.errors import BusinessError
 from core.config import settings
 from core.database import db
 from core.dates import as_datetime, now_utc
+from core.money import money
 
 logger = logging.getLogger("boltrex")
 
@@ -219,7 +220,7 @@ async def check_credit_limit(client: dict, new_total: float, session=None) -> No
     ], session=session).to_list(1)
     balance = float(rows[0]["balance"]) if rows else 0.0
     if balance + new_total - limit > 0.005:
-        fmt = lambda v: "$" + f"{v:,.0f}".replace(",", ".")
+        fmt = money
         name = f"{client.get('first_name', '')} {client.get('last_name', '')}".strip()
         raise BusinessError(f"La venta supera el cupo de crédito de {name}: debe {fmt(balance)}, esta venta es de {fmt(new_total)} "
                    f"y el cupo es {fmt(limit)} (disponible {fmt(max(0.0, limit - balance))}). Véndele de contado o pide "

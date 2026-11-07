@@ -24,7 +24,7 @@ def _report(rows=None, **kw):
 
 # ---------------------------------------------------------------- exportar
 def test_formato_de_dinero_con_negativos():
-    assert money(1500) == "$1.500" and money(-1500) == "−$1.500" and money(None) == "$0"
+    assert money(1500) == "$1.500" and money(-1500) == "−$1.500" and money(None) == "$0" and money(-0.5) == "−$0,50"
 
 
 def test_formato_pedido():
@@ -34,8 +34,8 @@ def test_formato_pedido():
 
 
 @pytest.mark.parametrize("value, kind, shown", [
-    (None, "money", ""), ("", "text", ""), (1234.4, "money", "$1.234"), (19, "percent", "19%"), (8.5, "percent", "8.5%"),
-    (12345, "int", "12.345"), (2.5, "number", "2.5"), (WHEN, "date", "06/11/2026"), (WHEN, "datetime", "06/11/2026 15:30"),
+    (None, "money", ""), ("", "text", ""), (1234.4, "money", "$1.234,40"), (1234, "money", "$1.234"), (19, "percent", "19%"), (8.5, "percent", "8,5%"),
+    (12345, "int", "12.345"), (2.5, "number", "2,5"), (WHEN, "date", "06/11/2026"), (WHEN, "datetime", "06/11/2026 15:30"),
     ("x", "text", "x"),
 ])
 def test_como_se_muestra_cada_tipo(value, kind, shown):

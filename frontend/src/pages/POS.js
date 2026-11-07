@@ -11,6 +11,7 @@ import { priceFor } from '@/features/pos/cart';
 import ClientSection from '@/features/pos/ClientSection';
 import ProductSection from '@/features/pos/ProductSection';
 import CartSection from '@/features/pos/CartSection';
+import { shortDate } from '@/lib/format';
 
 const POS = () => {
   const { canCreate } = usePermissions();
@@ -123,7 +124,7 @@ const POS = () => {
 
       const statusMessage = paymentStatus === 'pagado'
         ? `Factura ${response.data.invoice_number} creada - PAGADA con ${selectedPaymentMethod}`
-        : `Factura ${response.data.invoice_number} creada - POR COBRAR${response.data.due_date ? ` · vence el ${new Date(response.data.due_date).toLocaleDateString('es-CO')}` : ''}`;
+        : `Factura ${response.data.invoice_number} creada - POR COBRAR${response.data.due_date ? ` · vence el ${shortDate(response.data.due_date)}` : ''}`;
 
       toast.success(statusMessage, {
         action: paymentStatus === 'pagado' ? {

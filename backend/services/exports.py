@@ -13,6 +13,7 @@ from models.auth import User
 
 
 from core.sales import invoices_query, sales_summary
+from core.money import number
 
 
 STATUS_LABELS = {"completed": "Completada", "partial_return": "Devolución parcial", "returned": "Devuelta"}
@@ -98,7 +99,7 @@ async def inventory_report(user, fmt, tz):
                   rows, totals={"stock": sum(r["stock"] for r in rows), "value": round(sum(r["value"] for r in rows), 2)})
     report = Report(title="Inventario valorizado", filename=f"inventario_{now_utc().strftime('%Y%m%d')}",
                     filters=[f"Todos los productos · stock mínimo general {threshold}"],
-                    summary=[("Productos", str(s["total_products"])), ("Unidades", f"{s['total_units']:,}".replace(",", ".")),
+                    summary=[("Productos", str(s["total_products"])), ("Unidades", number(s["total_units"])),
                              ("Valor al costo", money(s["total_value"])), ("Bajo stock", str(s["low_stock_count"])),
                              ("Agotados", str(s["out_of_stock_count"]))],
                     sheets=[sheet])

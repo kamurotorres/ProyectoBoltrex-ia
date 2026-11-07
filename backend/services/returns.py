@@ -11,6 +11,7 @@ from models.billing import ReturnCreate
 
 from core import audit
 from core.cash import CASH_METHOD, add_movement, session_for_money
+from core.money import money
 
 
 _MONEY_EPS = 0.005   # tolerancia en pesos al comparar montos
@@ -156,10 +157,10 @@ async def create_return(return_data: ReturnCreate, current_user: User):
                                                 created_by=current_user.email, created_at=now, session=session)
 
         await audit.record("returns", "create", entity_id=return_data.invoice_number, entity_name=invoice.get("client_name"),
-                           summary=f"Devolución sobre la factura {return_data.invoice_number} por {total_return:,.0f} "
+                           summary=f"Devolución sobre la factura {return_data.invoice_number} por {money(total_return)} "
                                    f"({sum(i['quantity'] for i in return_items)} unidad(es)); la factura queda "
                                    f"{'devuelta por completo' if fully_returned else 'con devolución parcial'}"
-                                   + (f"; reembolso en efectivo {refund:,.0f}".replace(",", ".") if refund > 0 else ""),
+                                   + (f"; reembolso en efectivo {money(refund)}" if refund > 0 else ""),
                            before={k: invoice.get(k) for k in update_data}, after=update_data,
                            details={"items": return_items}, session=session)
 

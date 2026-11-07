@@ -2,6 +2,7 @@ import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2 } from 'lucide-react';
+import { money } from '@/lib/format';
 
 // Extraído de Products.js (mantenimiento fase 5) sin cambios en el JSX.
 export default function ProductsTable({ canDelete, canUpdate, filteredProducts, handleDelete, handleOpenDialog }) {
@@ -25,7 +26,7 @@ export default function ProductsTable({ canDelete, canUpdate, filteredProducts, 
               <TableCell>{product.name}</TableCell>
               <TableCell>{product.category}</TableCell>
               <TableCell className="text-right font-mono">{product.stock}</TableCell>
-              <TableCell className="text-right font-mono">${product.purchase_price.toFixed(2)}</TableCell>
+              <TableCell className="text-right font-mono">{money(product.purchase_price)}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-2">
                   {canUpdate('products') && (
