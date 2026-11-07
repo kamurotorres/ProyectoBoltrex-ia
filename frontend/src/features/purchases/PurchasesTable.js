@@ -3,6 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Edit, Eye, Loader2 } from 'lucide-react';
+import { dateTime, money } from '@/lib/format';
 
 // Extraído de Purchases.js (mantenimiento fase 5) sin cambios en el JSX.
 export default function PurchasesTable({ canUpdate, confirmingId, handleConfirm, openEditDialog, openViewDialog, purchases }) {
@@ -26,7 +27,7 @@ export default function PurchasesTable({ canUpdate, confirmingId, handleConfirm,
               <TableCell className="font-mono font-semibold">{purchase.purchase_number}</TableCell>
               <TableCell>{purchase.supplier_name}</TableCell>
               <TableCell className="text-right font-mono font-bold">
-                ${purchase.total?.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+                {money(purchase.total)}
               </TableCell>
               <TableCell>
                 <Badge variant={purchase.status === 'confirmado' ? 'default' : 'secondary'}
@@ -36,7 +37,7 @@ export default function PurchasesTable({ canUpdate, confirmingId, handleConfirm,
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">{purchase.created_by}</TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {new Date(purchase.created_at).toLocaleString('es-CO')}
+                {dateTime(purchase.created_at)}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">

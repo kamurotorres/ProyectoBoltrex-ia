@@ -21,7 +21,7 @@ def test_etiquetas_de_campos(field, label):
 
 @pytest.mark.parametrize("value, text", [
     (None, "—"), ("", "—"), (True, "sí"), (False, "no"),
-    (2500.0, "2.500"), (2.5, "2.50"), (12345, "12.345"), (9999, "9999"),
+    (2500.0, "2.500"), (2.5, "2,5"), (1234.56, "1.234,56"), (12345, "12.345"), (9999, "9999"),
     ([1, "a"], "1, a"), ([{"x": 1}], "1 elemento(s)"), ("texto", "texto"),
 ])
 def test_formato_de_valores(value, text):

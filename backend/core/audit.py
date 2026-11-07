@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from core.database import db
+from core.money import number
 
 logger = logging.getLogger("boltrex")
 
@@ -117,9 +118,9 @@ def format_value(v: Any) -> str:
     if isinstance(v, bool):
         return "sí" if v else "no"
     if isinstance(v, float):
-        return f"{v:,.0f}".replace(",", ".") if v.is_integer() else f"{v:,.2f}"
+        return number(v)
     if isinstance(v, int):
-        return f"{v:,}".replace(",", ".") if abs(v) >= 10000 else str(v)
+        return number(v) if abs(v) >= 10000 else str(v)
     if isinstance(v, list):
         return ", ".join(format_value(i) for i in v) if all(not isinstance(i, (dict, list)) for i in v) else f"{len(v)} elemento(s)"
     return str(v)

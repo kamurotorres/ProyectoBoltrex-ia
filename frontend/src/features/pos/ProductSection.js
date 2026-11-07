@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, Plus, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { money } from '@/lib/format';
 
 // Extraído de POS.js (mantenimiento fase 5) sin cambios en el JSX.
 export default function ProductSection({ addToCart, cart, filteredProducts, getProductPrice, searchProduct, searchingProducts, selectedClient, setSearchProduct }) {
@@ -55,7 +56,7 @@ export default function ProductSection({ addToCart, cart, filteredProducts, getP
                           <p className="text-sm font-semibold text-red-500">Sin precio de venta</p>
                         ) : (
                           <p className="font-bold text-lg font-mono text-primary">
-                            ${price.toLocaleString()}
+                            {money(price)}
                           </p>
                         )}
                         <p className={`text-xs ${product.stock > 0 ? 'text-muted-foreground' : 'text-red-500'}`}>

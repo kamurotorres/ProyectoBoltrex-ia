@@ -1,23 +1,67 @@
-// Formatos de dinero y fechas de todo el frontend (mantenimiento fase 4).
-// Antes había 9 copias repartidas en las pantallas; cada función reproduce EXACTAMENTE la que usaba
-// cada pantalla, para que nada cambie a la vista (lo verifica tests/frontend_format_check.js).
+// Formatos de dinero, números y fechas de TODO el frontend (fase 4; regla única desde «formato-numeros-colombia»).
+// Regla del sistema (la misma de backend/core/money.py; ambas se prueban con tests/money_cases.json):
+//   punto de miles y coma decimal · centavos SOLO si existen · signo menos «−».
+//   1500 → $1.500 · 999.99 → $999,99 · -1500 → −$1.500 · números: 2.5 → 2,5 · 12345 → 12.345
+// Se arma a mano (no con toLocaleString): así da lo mismo en cualquier navegador e idioma del equipo
+// (con 'es-ES', por ejemplo, 1234 sale «1234» sin punto). No formatear números ni fechas en las pantallas:
+// usar estas funciones (tests/frontend_format_check.js revisa que no queden formatos sueltos).
 
 const LOCALE = 'es-CO';
+const MINUS = '−';
 
-// ---------------------------------------------------------------- dinero
+// Redondeo a centavos, mitad hacia arriba (igual que el backend).
+const round2 = (value) => {
+  const v = Number(value || 0);
+  if (!Number.isFinite(v)) return 0;
+  const r = Math.floor(Math.abs(v) * 100 + 0.5) / 100;
+  return v < 0 && r !== 0 ? -r : r;
+};
+const group = (integer) => String(integer).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const split = (a) => {
+  const cents = Math.round(a * 100);
+  return [Math.floor(cents / 100), cents % 100];
+};
 
-/** $1.234 — pesos sin decimales (Dashboard, Clientes, Alertas, Ajustes, POS, Caja). */
-export const money = (v) => `$${Number(v || 0).toLocaleString(LOCALE, { maximumFractionDigits: 0 })}`;
+// ---------------------------------------------------------------- dinero y números
 
-/** $1.234,50 — con 2 decimales (Reportes). */
-export const money2 = (v) => `$${Number(v || 0).toLocaleString(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** $1.500 · $999,99 · −$1.500 · $0 — todo el dinero del sistema. */
+export const money = (value) => {
+  const n = round2(value);
+  const [whole, cents] = split(Math.abs(n));
+  return `${n < 0 ? MINUS : ''}$${group(whole)}${cents ? `,${String(cents).padStart(2, '0')}` : ''}`;
+};
 
-const COP = new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-/** $ 1.234 — formato de moneda COP de Intl (Fios, Facturas). */
-export const currency = (amount) => COP.format(amount);
+/** Antes eran otras variantes (2 decimales siempre en Reportes; moneda COP de Intl en Fios y Facturas). Hoy = money. */
+export const money2 = money;
+export const currency = money;
 
-/** −$800 / +$300 / $0 — con signo (Ajustes de inventario). */
-export const signedMoney = (v) => `${v < 0 ? '−' : v > 0 ? '+' : ''}$${Math.abs(Number(v || 0)).toLocaleString(LOCALE, { maximumFractionDigits: 0 })}`;
+/** +$300 · −$800 · $0 — diferencias (sobrantes/faltantes, ajustes de inventario). */
+export const signedMoney = (value) => {
+  const n = round2(value);
+  return `${n > 0 ? '+' : ''}${money(n)}`;
+};
+
+/** 12.345 · 2,5 · 0,33 · −4 — cantidades y porcentajes (hasta 2 decimales, sin ceros de sobra). */
+export const number = (value) => {
+  const n = round2(value);
+  const [whole, cents] = split(Math.abs(n));
+  const decimals = cents ? String(cents).padStart(2, '0').replace(/0+$/, '') : '';
+  return `${n < 0 ? MINUS : ''}${group(whole)}${decimals ? `,${decimals}` : ''}`;
+};
+
+/** 19 % · 8,5 % */
+export const percent = (value) => `${number(value)} %`;
+
+/** $1,5 M · $12 mil · $800 — montos cortos para los ejes de las gráficas. */
+export const compactMoney = (value) => {
+  const n = Number(value || 0);
+  if (n >= 1e6) return `$${number(Math.round(n / 1e5) / 10)} M`;
+  if (n >= 1e3) return `$${number(Math.round(n / 1e3))} mil`;
+  return money(Math.round(n));
+};
+
+/** Fecha local AAAA-MM-DD (para enviar filtros de fecha al servidor, no para mostrar). */
+export const localYmd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 // ---------------------------------------------------------------- fechas
 

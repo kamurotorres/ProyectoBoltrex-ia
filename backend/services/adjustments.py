@@ -20,11 +20,11 @@ from datetime import datetime, timezone
 
 from core.adjustments import MAX_ITEMS
 from core.sales import created_at_range
+from core.money import money
 
 
 
-def money_text(v: float) -> str:
-    return ("−" if v < 0 else "") + "$" + f"{abs(v):,.0f}".replace(",", ".")
+money_text = money   # formato único del sistema (core/money.py)
 
 
 async def validate_adjustment(body: AdjustmentIn) -> dict:

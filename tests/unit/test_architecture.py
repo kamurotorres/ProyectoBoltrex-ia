@@ -92,3 +92,44 @@ def test_sin_imports_con_asterisco():
 def test_todo_el_backend_compila_e_importa_sin_base_de_datos():
     import main
     assert len(main.app.routes) >= 120
+
+
+# Formato de dinero/números a mano (f"{v:,.2f}", f"{v:,}", "{:,.0f}".format(v), format(v, ",")): solo en core/money.py.
+def _manual_number_formats(path):
+    """Líneas con un formato numérico de miles (coma en el formato), leyendo el código con ast."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    lines = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FormattedValue) and node.format_spec is not None:
+            spec = "".join(v.value for v in node.format_spec.values if isinstance(v, ast.Constant) and isinstance(v.value, str))
+            if "," in spec:
+                lines.add(node.lineno)
+        elif isinstance(node, ast.Call):
+            f = node.func
+            if (isinstance(f, ast.Attribute) and f.attr == "format" and isinstance(f.value, ast.Constant)
+                    and isinstance(f.value.value, str) and re.search(r"\{[^}]*:[^}]*,[^}]*\}", f.value.value)):
+                lines.add(node.lineno)
+            if (isinstance(f, ast.Name) and f.id == "format" and len(node.args) == 2 and isinstance(node.args[1], ast.Constant)
+                    and "," in str(node.args[1].value)):
+                lines.add(node.lineno)
+    return sorted(lines)
+
+
+def test_dinero_y_numeros_solo_con_core_money():
+    allowed = BACKEND / "core" / "money.py"
+    files = [BACKEND / "ticket_generator.py"] + [p for f in ("routers", "services", "core", "repositories") for p in _py(f)]
+    bad = []
+    for p in files:
+        if p == allowed:
+            continue
+        text = p.read_text(encoding="utf-8").splitlines()
+        bad += [f"{_where(p, n)}: {text[n - 1].strip()}" for n in _manual_number_formats(p)]
+    assert not bad, ("Formato de número a mano: usar money()/number() de core/money.py (formato colombiano único, "
+                     "el mismo del frontend):\n" + "\n".join(bad))
+
+
+def test_la_regla_de_formatos_reconoce_los_casos(tmp_path):
+    sample = tmp_path / "x.py"
+    sample.write_text('a = f"{v:,.2f}"\nb = f"{v:,}"\nc = "{:,.0f}".format(v)\nd = format(v, ",")\n'
+                      'ok1 = {"a": 1, "b": 2}\nok2 = f"{v:.2f} {name}"\n', encoding="utf-8")
+    assert _manual_number_formats(sample) == [1, 2, 3, 4]

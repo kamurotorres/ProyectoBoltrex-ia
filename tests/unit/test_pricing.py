@@ -35,7 +35,7 @@ def test_precios_como_objetos_pydantic():
     (1000, 19, [{"price_list_name": "default", "price": 0}], "El precio de la lista 'default' debe ser mayor a 0."),
     (1000, 19, [{"price_list_name": "default", "price": "x"}], "El precio de la lista 'default' debe ser un número."),
     (1000, 19, [{"price_list_name": "default", "price": 999.99}],
-     "El precio de venta de la lista 'default' ($999.99) no puede ser menor que el precio de compra ($1,000.00)."),
+     "El precio de venta de la lista 'default' ($999,99) no puede ser menor que el precio de compra ($1.000)."),
     (1000, 19, [{"price_list_name": "mayorista", "price": 1500}],
      "El precio de la lista 'default' es obligatorio: es el que se cobra cuando el cliente tiene una lista para la que el producto no tiene precio."),
 ])

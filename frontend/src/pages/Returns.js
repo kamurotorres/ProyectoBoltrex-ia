@@ -27,6 +27,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { API, api } from '@/api/client';
+import { dateTime, money, shortDate } from '@/lib/format';
 
 const Returns = () => {
   const { canCreate } = usePermissions();
@@ -132,7 +133,7 @@ const Returns = () => {
       // P2.31: si el cliente ya había pagado más que el nuevo total, se le entrega efectivo de la caja.
       const refund = res.data?.refund_amount || 0;
       if (refund > 0) {
-        toast.success(`Devolución registrada. Entrega al cliente $${Math.round(refund).toLocaleString('es-CO')} en efectivo (sale de tu caja).`, { duration: 8000 });
+        toast.success(`Devolución registrada. Entrega al cliente ${money(refund)} en efectivo (sale de tu caja).`, { duration: 8000 });
       } else {
         toast.success('Devolución registrada. No hay dinero que entregar: se descontó de lo que el cliente debe o de su factura.');
       }
@@ -211,9 +212,9 @@ const Returns = () => {
                                 <p className="text-sm text-muted-foreground">{invoice.client_name}</p>
                               </div>
                               <div className="text-right">
-                                <p className="font-mono font-bold">${invoice.total.toFixed(2)}</p>
+                                <p className="font-mono font-bold">{money(invoice.total)}</p>
                                 <p className="text-xs text-muted-foreground">
-                                  {new Date(invoice.created_at).toLocaleDateString('es-ES')}
+                                  {shortDate(invoice.created_at)}
                                 </p>
                               </div>
                             </div>
@@ -272,7 +273,7 @@ const Returns = () => {
                                     data-testid={`return-quantity-${index}`}
                                   />
                                 </TableCell>
-                                <TableCell className="text-right font-mono">${unitPriceWithTax(item).toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-mono">{money(unitPriceWithTax(item))}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -284,7 +285,7 @@ const Returns = () => {
                       <div className="flex justify-between text-lg font-bold">
                         <span>Total a Devolver:</span>
                         <span className="font-mono" data-testid="return-total">
-                          ${returnItems.reduce((sum, item) => sum + (unitPriceWithTax(item) * item.return_quantity), 0).toFixed(2)}
+                          {money(returnItems.reduce((sum, item) => sum + (unitPriceWithTax(item) * item.return_quantity), 0))}
                         </span>
                       </div>
                     </div>
@@ -329,10 +330,10 @@ const Returns = () => {
             {returns.map((returnItem, index) => (
               <TableRow key={index} data-testid={`return-row-${index}`}>
                 <TableCell className="font-mono">{returnItem.invoice_number}</TableCell>
-                <TableCell className="text-right font-mono font-bold">${returnItem.total.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-mono font-bold">{money(returnItem.total)}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{returnItem.created_by}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {new Date(returnItem.created_at).toLocaleString('es-ES')}
+                  {dateTime(returnItem.created_at)}
                 </TableCell>
               </TableRow>
             ))}

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { money as fmtMoney } from '@/lib/format';
+import { money as fmtMoney, compactMoney } from '@/lib/format';
 
 // Gráficas del Dashboard (backlog P2.29) en SVG propio, sin librerías.
 // Reglas de la guía de visualización:
@@ -22,12 +22,7 @@ function niceMax(max) {
   return nice * exp;
 }
 
-const compact = (v) => {
-  const n = Number(v || 0);
-  if (n >= 1e6) return `$${(n / 1e6).toLocaleString('es-CO', { maximumFractionDigits: 1 })} M`;
-  if (n >= 1e3) return `$${(n / 1e3).toLocaleString('es-CO', { maximumFractionDigits: 0 })} mil`;
-  return `$${n.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`;
-};
+const compact = compactMoney;   // eje de las gráficas: $1,5 M · $12 mil · $800 (lib/format)
 
 // Barra con extremo redondeado y base recta (vertical u horizontal).
 function barPath(x, y, w, h, vertical) {

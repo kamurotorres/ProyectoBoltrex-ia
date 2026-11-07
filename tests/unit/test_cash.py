@@ -6,10 +6,12 @@ from core.errors import BusinessError
 
 
 def test_formato_de_dinero_colombiano():
-    assert money(1234567.4) == "$1.234.567"
+    # Regla única del sistema (core/money.py): centavos solo si existen.
+    assert money(1234567) == "$1.234.567"
+    assert money(1234567.4) == "$1.234.567,40"
     assert money(0) == "$0"
     assert money(None) == "$0"
-    assert money(999.5) == "$1.000"
+    assert money(999.5) == "$999,50"
 
 
 def test_es_efectivo():

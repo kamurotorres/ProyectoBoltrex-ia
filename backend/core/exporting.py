@@ -23,6 +23,7 @@ from fastapi.responses import Response
 from core import audit
 from core.database import db
 from core.dates import now_utc
+from core.money import money, number  # noqa: F401
 
 PDF_MAX_ROWS = 3000
 FORMATS = ("csv", "xlsx", "pdf")
@@ -62,9 +63,7 @@ class Report:
     notes: List[str] = field(default_factory=list)     # párrafos extra (p. ej. observaciones del cierre)
 
 
-def money(v: float) -> str:
-    v = float(v or 0)
-    return ("−" if v < 0 else "") + "$" + f"{abs(v):,.0f}".replace(",", ".")
+# money / number: formato único del sistema (core/money.py), re-exportados para los reportes.
 
 
 def check_format(fmt: Optional[str]) -> str:
@@ -90,9 +89,9 @@ def _display(value, kind: str) -> str:
     if kind == "money":
         return money(value)
     if kind == "percent":
-        return f"{float(value):g}%"
+        return f"{number(value)}%"
     if kind in ("int", "number"):
-        return f"{value:,.0f}".replace(",", ".") if isinstance(value, (int, float)) and float(value).is_integer() else str(value)
+        return number(value) if isinstance(value, (int, float)) else str(value)
     if kind == "date" and isinstance(value, datetime):
         return value.strftime("%d/%m/%Y")
     if kind == "datetime" and isinstance(value, datetime):
@@ -191,8 +190,8 @@ def render_pdf(report: Report, comp: Dict[str, str], generated: str) -> bytes:
     pdf_sheets = [s for s in report.sheets if s.in_pdf]
     rows_total = sum(len(s.rows) for s in pdf_sheets)
     if rows_total > PDF_MAX_ROWS:
-        raise BusinessError(f"El PDF admite máximo {PDF_MAX_ROWS:,} filas y este reporte tiene {rows_total:,}. "
-                                                    f"Expórtalo en Excel o filtra un periodo más corto.".replace(",", "."))
+        raise BusinessError(f"El PDF admite máximo {number(PDF_MAX_ROWS)} filas y este reporte tiene {number(rows_total)}. "
+                            "Expórtalo en Excel o filtra un periodo más corto.")
 
     page = landscape(A4) if report.landscape else A4
     styles = getSampleStyleSheet()
