@@ -36,6 +36,11 @@ async def set_stock_if(barcode: str, expected: int, new_stock: int, session=None
     return result.modified_count == 1
 
 
+async def set_purchase_price(barcode: str, cost: float, session=None) -> None:
+    """Costo (precio de compra) del producto: lo actualiza la confirmación de una compra."""
+    await db.products.update_one({"barcode": barcode}, {"$set": {"purchase_price": cost}}, session=session)
+
+
 async def record_movement(*, barcode: str, product_name: str, movement_type: str, quantity: int, reference: str,
                           created_by: str, created_at: datetime, session=None, **extra) -> None:
     """Movimiento de inventario (sale, return, purchase, adjustment): cantidad con signo."""

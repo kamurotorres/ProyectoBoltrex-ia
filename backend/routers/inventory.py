@@ -4,7 +4,7 @@ from core.dates import as_datetime
 from core.database import db
 from core.permissions import require_permission
 from models.auth import User
-from models.entities import Purchase, PurchaseCreate, PurchaseUpdate
+from models.entities import Purchase, PurchaseConfirmed, PurchaseCreate, PurchaseUpdate
 
 from core.pagination import page_params, paginate, search_filter, combine
 from core.sales import created_at_range
@@ -33,9 +33,9 @@ async def get_purchase(purchase_number: str, current_user: User = Depends(requir
 async def update_purchase(purchase_number: str, update_data: PurchaseUpdate, current_user: User = Depends(require_permission("purchases", "update"))):
     return Purchase(**await purchases_service.update_purchase(purchase_number=purchase_number, update_data=update_data, current_user=current_user))
 
-@router.post("/purchases/{purchase_number}/confirm", response_model=Purchase)
+@router.post("/purchases/{purchase_number}/confirm", response_model=PurchaseConfirmed)
 async def confirm_purchase(purchase_number: str, current_user: User = Depends(require_permission("purchases", "update"))):
-    return Purchase(**await purchases_service.confirm_purchase(purchase_number=purchase_number, current_user=current_user))
+    return PurchaseConfirmed(**await purchases_service.confirm_purchase(purchase_number=purchase_number, current_user=current_user))
 
 
 @router.get("/purchases")

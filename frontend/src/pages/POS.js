@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/lib/utils';
 import { notifyDataChanged } from '@/lib/events';
 import { api } from '@/api/client';
 import { useServerSearch } from '@/hooks/useServerSearch';
+import { useBarcodeScan } from '@/hooks/useBarcodeScan';
 import { useCart, useCashState, useCreditStatus } from '@/features/pos/usePosState';
 import { priceFor } from '@/features/pos/cart';
 import ClientSection from '@/features/pos/ClientSection';
@@ -69,6 +70,15 @@ const POS = () => {
   const getProductPrice = (product) => priceFor(product, selectedClient && selectedClient.price_list);
   const addToCart = (product) => {
     if (addLine(product, selectedClient)) setSearchProduct('');   // Clear search after adding
+  };
+  // Lector de código de barras (decisión 3.A): Enter con el código exacto agrega 1 unidad y deja el buscador listo.
+  const scan = useBarcodeScan();
+  const handleScan = async (code) => {
+    const product = await scan(code, filteredProducts);
+    if (!product) return;
+    rememberProducts([product]);   // el carrito necesita su stock para − / +
+    addToCart(product);
+    setSearchProduct('');
   };
 
   const downloadTicket = async (invoiceNumber) => {
@@ -192,7 +202,7 @@ const POS = () => {
       <ClientSection creditStatus={creditStatus} filteredClients={filteredClients} handleClientChange={handleClientChange} searchClient={searchClient} searchingClients={searchingClients} selectedClient={selectedClient} setSearchClient={setSearchClient} setSelectedClient={setSelectedClient} />
 
       {/* SECTION 2: Product Search - Full Width */}
-      <ProductSection addToCart={addToCart} cart={cart} filteredProducts={filteredProducts} getProductPrice={getProductPrice} searchProduct={searchProduct} searchingProducts={searchingProducts} selectedClient={selectedClient} setSearchProduct={setSearchProduct} />
+      <ProductSection addToCart={addToCart} onScan={handleScan} cart={cart} filteredProducts={filteredProducts} getProductPrice={getProductPrice} searchProduct={searchProduct} searchingProducts={searchingProducts} selectedClient={selectedClient} setSearchProduct={setSearchProduct} />
 
       {/* SECTION 3: Cart and Checkout - Full Width */}
       <CartSection canCreate={canCreate} cart={cart} cashState={cashState} creditStatus={creditStatus} dueDate={dueDate} handleCheckout={handleCheckout} isProcessing={isProcessing} paymentMethods={paymentMethods} paymentStatus={paymentStatus} removeFromCart={removeFromCart} selectedClient={selectedClient} selectedPaymentMethod={selectedPaymentMethod} setCart={setCart} setDueDate={setDueDate} setPaymentStatus={setPaymentStatus} setQuantity={setQuantity} setSelectedPaymentMethod={setSelectedPaymentMethod} totals={totals} updateQuantity={updateQuantity} />

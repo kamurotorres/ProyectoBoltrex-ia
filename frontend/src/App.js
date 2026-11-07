@@ -13,6 +13,7 @@ import AdjustmentReasons from '@/pages/AdjustmentReasons';
 import Clients from '@/pages/Clients';
 import Suppliers from '@/pages/Suppliers';
 import Purchases from '@/pages/Purchases';
+import PurchaseEditor from '@/pages/PurchaseEditor';
 import Returns from '@/pages/Returns';
 import POS from '@/pages/POS';
 import Inventory from '@/pages/Inventory';
@@ -63,6 +64,12 @@ const PAGES = {
   '/audit': Audit,
 };
 
+// Subpáginas de una sección: misma protección (permiso) que la sección indicada.
+const SUBPAGES = [
+  { path: '/purchases/nueva', section: '/purchases', Page: PurchaseEditor },          // compra nueva
+  { path: '/purchases/:purchaseNumber', section: '/purchases', Page: PurchaseEditor }, // editar / ver
+];
+
 function App() {
   return (
     <AuthProvider>
@@ -90,6 +97,9 @@ function App() {
             <Route index element={<HomeRoute><Dashboard /></HomeRoute>} />
             {Object.entries(PAGES).map(([path, Page]) => (
               <Route key={path} path={path.slice(1)} element={<RequireSection path={path}><Page /></RequireSection>} />
+            ))}
+            {SUBPAGES.map(({ path, section, Page }) => (
+              <Route key={path} path={path.slice(1)} element={<RequireSection path={section}><Page /></RequireSection>} />
             ))}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
