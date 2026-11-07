@@ -107,10 +107,11 @@ if [[ $SPECIAL -eq 1 ]]; then
   stop_backend
 
   if command -v node >/dev/null && [[ -d frontend/node_modules/@babel/core ]]; then
-    echo "== Frontend sin navegador (permisos del menú, sintaxis e imports, formatos, lint)"
+    echo "== Frontend sin navegador (permisos del menú, sintaxis e imports, formatos, carrito, formularios, lint)"
     for fc in "frontend_access:node tests/frontend_access_check.js" "frontend_syntax:node tests/frontend_syntax_check.js" \
               "frontend_format:node tests/frontend_format_check.js" \
-              "frontend_cart:node tests/frontend_cart_check.js" "frontend_lint:bash tests/frontend_lint_check.sh"; do
+              "frontend_cart:node tests/frontend_cart_check.js" "frontend_forms:node tests/frontend_forms_check.js" \
+              "frontend_forms_render:node tests/frontend_forms_render_check.js" "frontend_lint:bash tests/frontend_lint_check.sh"; do
       name="${fc%%:*}"; cmd="${fc#*:}"
       if $cmd > "$LOGDIR/$name.log" 2>&1; then
         add_result "✅ $name: $(tail -1 "$LOGDIR/$name.log")"

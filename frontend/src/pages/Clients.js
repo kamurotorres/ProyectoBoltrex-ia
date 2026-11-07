@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -10,13 +9,6 @@ import {
   DialogTitle,
   DialogFooter
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -34,6 +26,14 @@ import Pagination from '@/components/Pagination';
 import { money } from '@/lib/format';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useZodForm } from '@/hooks/useZodForm';
+import { SelectField, TextField } from '@/components/form/Field';
+import { clientSchema } from '@/lib/schemas';
+
+const EMPTY = {
+  document_type: '', document_number: '', first_name: '', last_name: '', phone: '', email: '', address: '',
+  latitude: '', longitude: '', price_list: 'default', credit_days: '', credit_limit: '',
+};
 
 const Clients = () => {
   const { canCreate, canUpdate, canDelete, isAdmin } = usePermissions();
@@ -43,24 +43,12 @@ const Clients = () => {
   const [documentTypes, setDocumentTypes] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentClient, setCurrentClient] = useState(null);
-  const [formData, setFormData] = useState({
-    document_type: '',
-    document_number: '',
-    first_name: '',
-    last_name: '',
-    phone: '',
-    email: '',
-    address: '',
-    latitude: '',
-    longitude: '',
-    price_list: 'default',
-    credit_days: '',
-    credit_limit: ''
-  });
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo).
+  const form = useZodForm(clientSchema, EMPTY);
+  const isSubmitting = form.submitting;
 
   useEffect(() => {
     fetchData();
@@ -82,11 +70,7 @@ const Clients = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       const { credit_days: creditDays, credit_limit: creditLimit, ...rest } = formData;
       const payload = {
@@ -99,12 +83,7 @@ const Clients = () => {
       if (isAdmin) {
         payload.credit_days = creditDays === '' ? null : Number(creditDays);
         payload.credit_limit = creditLimit === '' ? null : Number(creditLimit);
-        if ((payload.credit_days !== null && (!Number.isInteger(payload.credit_days) || payload.credit_days < 0))
-            || (payload.credit_limit !== null && (Number.isNaN(payload.credit_limit) || payload.credit_limit < 0))) {
-          toast.error('El plazo debe ser un número entero de días (0 o más) y el cupo un valor de 0 o más.');
-          setIsSubmitting(false);
-          return;
-        }
+        // fase 6: el plazo (entero 0–3650) y el cupo (≥ 0) ya los validó el esquema, con el error en su campo.
       }
 
       if (editMode) {
@@ -121,16 +100,14 @@ const Clients = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar cliente'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleOpenDialog = (client = null) => {
     if (client) {
       setEditMode(true);
       setCurrentClient(client);
-      setFormData({
+      form.reset({
         document_type: client.document_type,
         document_number: client.document_number,
         first_name: client.first_name,
@@ -147,20 +124,7 @@ const Clients = () => {
     } else {
       setEditMode(false);
       setCurrentClient(null);
-      setFormData({
-        document_type: '',
-        document_number: '',
-        first_name: '',
-        last_name: '',
-        phone: '',
-        email: '',
-        address: '',
-        latitude: '',
-        longitude: '',
-        price_list: 'default',
-        credit_days: '',
-        credit_limit: ''
-      });
+      form.reset(EMPTY);
     }
     setDialogOpen(true);
   };
@@ -211,158 +175,41 @@ const Clients = () => {
                 {editMode ? 'Modifica los datos del cliente' : 'Registra un nuevo cliente'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="document_type">Tipo de Documento *</Label>
-                    <Select
-                      value={formData.document_type}
-                      onValueChange={(value) => setFormData({ ...formData, document_type: value })}
-                      required
-                      disabled={editMode}
-                    >
-                      <SelectTrigger data-testid="client-document-type-select">
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {documentTypes.map((dt) => (
-                          <SelectItem key={dt.code} value={dt.code}>
-                            {dt.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="document_number">Número de Documento *</Label>
-                    <Input
-                      id="document_number"
-                      value={formData.document_number}
-                      onChange={(e) => setFormData({ ...formData, document_number: e.target.value })}
-                      required
-                      disabled={editMode}
-                      data-testid="client-document-number-input"
-                    />
-                  </div>
+                  <SelectField form={form} name="document_type" label="Tipo de Documento *" placeholder="Seleccionar"
+                               disabled={editMode} triggerTestId="client-document-type-select"
+                               options={documentTypes.map((dt) => ({ value: dt.code, label: dt.name }))} />
+                  <TextField form={form} name="document_number" label="Número de Documento *" disabled={editMode}
+                             data-testid="client-document-number-input" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first_name">Nombres *</Label>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      required
-                      data-testid="client-first-name-input"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">Apellidos *</Label>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      required
-                      data-testid="client-last-name-input"
-                    />
-                  </div>
+                  <TextField form={form} name="first_name" label="Nombres *" data-testid="client-first-name-input" />
+                  <TextField form={form} name="last_name" label="Apellidos *" data-testid="client-last-name-input" />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      data-testid="client-phone-input"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      data-testid="client-email-input"
-                    />
-                  </div>
+                  <TextField form={form} name="phone" label="Teléfono" data-testid="client-phone-input" />
+                  <TextField form={form} name="email" label="Email" type="email" data-testid="client-email-input" />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="address">Dirección</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    data-testid="client-address-input"
-                  />
-                </div>
+                <TextField form={form} name="address" label="Dirección" data-testid="client-address-input" />
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="latitude">Latitud</Label>
-                    <Input
-                      id="latitude"
-                      type="number"
-                      step="any"
-                      value={formData.latitude}
-                      onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                      data-testid="client-latitude-input"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="longitude">Longitud</Label>
-                    <Input
-                      id="longitude"
-                      type="number"
-                      step="any"
-                      value={formData.longitude}
-                      onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                      data-testid="client-longitude-input"
-                    />
-                  </div>
+                  <TextField form={form} name="latitude" label="Latitud" type="number" step="any" data-testid="client-latitude-input" />
+                  <TextField form={form} name="longitude" label="Longitud" type="number" step="any" data-testid="client-longitude-input" />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="price_list">Lista de Precios *</Label>
-                  <Select
-                    value={formData.price_list}
-                    onValueChange={(value) => setFormData({ ...formData, price_list: value })}
-                  >
-                    <SelectTrigger data-testid="client-price-list-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priceLists.filter(pl => pl.is_active).map((pl) => (
-                        <SelectItem key={pl.name} value={pl.name}>
-                          {pl.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <SelectField form={form} name="price_list" label="Lista de Precios *" triggerTestId="client-price-list-select"
+                             options={priceLists.filter((pl) => pl.is_active).map((pl) => ({ value: pl.name, label: pl.name }))} />
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="credit_days">Plazo de crédito (días)</Label>
-                    <Input id="credit_days" type="number" min="0" step="1" placeholder="Por defecto" disabled={!isAdmin}
-                           value={formData.credit_days}
-                           onChange={(e) => setFormData({ ...formData, credit_days: e.target.value })} data-testid="client-credit-days-input" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="credit_limit">Cupo de crédito</Label>
-                    <Input id="credit_limit" type="number" min="0" step="1" placeholder="Sin límite" disabled={!isAdmin}
-                           value={formData.credit_limit}
-                           onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })} data-testid="client-credit-limit-input" />
-                  </div>
+                  <TextField form={form} name="credit_days" label="Plazo de crédito (días)" type="number" min="0" step="1"
+                             placeholder="Por defecto" disabled={!isAdmin} data-testid="client-credit-days-input" />
+                  <TextField form={form} name="credit_limit" label="Cupo de crédito" type="number" min="0" step="1"
+                             placeholder="Sin límite" disabled={!isAdmin} data-testid="client-credit-limit-input" />
                   <p className="col-span-2 text-xs text-muted-foreground -mt-2">
                     {isAdmin
                       ? 'Vacío: usa el plazo de Config. Sistema y no tiene límite de cupo. Una venta a crédito que supere el cupo se rechaza.'

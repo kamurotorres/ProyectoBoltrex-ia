@@ -32,10 +32,15 @@ import {
 } from '@/components/ui/card';
 import { usePermissions } from '@/hooks/usePermissions';
 import { api } from '@/api/client';
+import { useZodForm } from '@/hooks/useZodForm';
+import { FieldError } from '@/components/form/Field';
+import { ticketConfigSchema } from '@/lib/schemas';
 
 const TicketConfig = () => {
   const { canUpdate } = usePermissions();
-  const [config, setConfig] = useState({
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo); la vista previa usa los
+  // valores que se van escribiendo.
+  const form = useZodForm(ticketConfigSchema, {
     company_name: '',
     nit: '',
     phone: '',
@@ -44,8 +49,11 @@ const TicketConfig = () => {
     ticket_width: 80,
     footer_message: '¡Gracias por su compra!'
   });
+  const config = form.watch();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const saving = form.submitting;
+  const errors = form.errors;
+  const errorClass = (name) => (errors[name] ? 'border-destructive' : undefined);
 
   useEffect(() => {
     fetchConfig();
@@ -55,7 +63,7 @@ const TicketConfig = () => {
     try {
       setLoading(true);
       const response = await api.get(`/ticket-config`);
-      setConfig(response.data);
+      form.reset(response.data);
     } catch (error) {
       toast.error('Error al cargar la configuración');
       console.error(error);
@@ -64,30 +72,15 @@ const TicketConfig = () => {
     }
   };
 
-  const handleChange = (field, value) => {
-    setConfig(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (saving) return;
-
-    if (!config.company_name.trim()) {
-      toast.error('El nombre de la empresa es requerido');
-      return;
-    }
-
+  const handleSubmit = form.submit(async (config) => {
     try {
-      setSaving(true);
       await api.put(`/ticket-config`, config);
       toast.success('Configuración guardada exitosamente');
     } catch (error) {
       toast.error('Error al guardar la configuración');
       console.error(error);
-    } finally {
-      setSaving(false);
     }
-  };
+  });
 
   if (loading) {
     return (
@@ -110,7 +103,7 @@ const TicketConfig = () => {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         {/* Sin permiso de editar, los campos quedan de solo lectura (P1.13). */}
         <fieldset disabled={!canUpdate('ticket-config')} className="space-y-6 disabled:opacity-90">
         {/* Company Info Card */}
@@ -133,12 +126,12 @@ const TicketConfig = () => {
                 </Label>
                 <Input
                   id="company_name"
-                  value={config.company_name}
-                  onChange={(e) => handleChange('company_name', e.target.value)}
+                  {...form.register('company_name')}
+                  className={errorClass('company_name')}
                   placeholder="Mi Empresa S.A.S"
-                  required
                   data-testid="input-company-name"
                 />
+                <FieldError error={errors.company_name} id="company_name-error" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="nit" className="flex items-center gap-1">
@@ -147,8 +140,8 @@ const TicketConfig = () => {
                 </Label>
                 <Input
                   id="nit"
-                  value={config.nit}
-                  onChange={(e) => handleChange('nit', e.target.value)}
+                  {...form.register('nit')}
+                  className={errorClass('nit')}
                   placeholder="900.123.456-7"
                   data-testid="input-nit"
                 />
@@ -163,8 +156,8 @@ const TicketConfig = () => {
                 </Label>
                 <Input
                   id="phone"
-                  value={config.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
+                  {...form.register('phone')}
+                  className={errorClass('phone')}
                   placeholder="+57 300 123 4567"
                   data-testid="input-phone"
                 />
@@ -177,11 +170,12 @@ const TicketConfig = () => {
                 <Input
                   id="email"
                   type="email"
-                  value={config.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
+                  {...form.register('email')}
+                  className={errorClass('email')}
                   placeholder="contacto@empresa.com"
                   data-testid="input-email"
                 />
+                <FieldError error={errors.email} id="email-error" />
               </div>
             </div>
 
@@ -192,8 +186,8 @@ const TicketConfig = () => {
               </Label>
               <Textarea
                 id="address"
-                value={config.address}
-                onChange={(e) => handleChange('address', e.target.value)}
+                {...form.register('address')}
+                className={errorClass('address')}
                 placeholder="Calle 123 #45-67, Ciudad, País"
                 rows={2}
                 data-testid="input-address"
@@ -221,7 +215,7 @@ const TicketConfig = () => {
               </Label>
               <Select
                 value={String(config.ticket_width)}
-                onValueChange={(value) => handleChange('ticket_width', Number(value))}
+                onValueChange={(value) => form.setValue('ticket_width', Number(value), { shouldValidate: form.formState.isSubmitted })}
               >
                 <SelectTrigger data-testid="select-ticket-width">
                   <SelectValue />
@@ -234,6 +228,7 @@ const TicketConfig = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 Seleccione según el tipo de impresora térmica que utiliza
               </p>
+              <FieldError error={errors.ticket_width} id="ticket_width-error" />
             </div>
 
             <div className="space-y-2">
@@ -243,8 +238,8 @@ const TicketConfig = () => {
               </Label>
               <Input
                 id="footer_message"
-                value={config.footer_message}
-                onChange={(e) => handleChange('footer_message', e.target.value)}
+                {...form.register('footer_message')}
+                className={errorClass('footer_message')}
                 placeholder="¡Gracias por su compra!"
                 data-testid="input-footer-message"
               />
@@ -266,7 +261,7 @@ const TicketConfig = () => {
           <CardContent>
             <div
               className="bg-white text-black p-4 rounded-lg font-mono text-sm text-center border"
-              style={{ maxWidth: config.ticket_width === 58 ? '220px' : '300px' }}
+              style={{ maxWidth: Number(config.ticket_width) === 58 ? '220px' : '300px' }}
               data-testid="ticket-preview"
             >
               <p className="font-bold text-base">{config.company_name || 'NOMBRE EMPRESA'}</p>

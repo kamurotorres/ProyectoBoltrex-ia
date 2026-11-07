@@ -32,6 +32,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useZodForm } from '@/hooks/useZodForm';
+import { FieldError, TextField } from '@/components/form/Field';
+import { paymentMethodSchema } from '@/lib/schemas';
 import { Search } from 'lucide-react';
 import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
@@ -43,16 +46,14 @@ const PaymentMethods = () => {
   const list = usePaginatedList(`${API}/payment-methods`, { params: { paginated: true }, errorMessage: 'Error al cargar las formas de pago' });
   const paymentMethods = list.items;
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editingMethod, setEditingMethod] = useState(null);
   const [methodToDelete, setMethodToDelete] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    is_active: true
-  });
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo).
+  const form = useZodForm(paymentMethodSchema, { name: '', description: '', is_active: true });
+  const isSubmitting = form.submitting;
+  const isActive = form.watch('is_active');
 
   const { canCreate, canUpdate, canDelete } = usePermissions();
   const moduleSlug = 'payment-methods';
@@ -68,13 +69,13 @@ const PaymentMethods = () => {
 
   const handleOpenCreate = () => {
     setEditingMethod(null);
-    setFormData({ name: '', description: '', is_active: true });
+    form.reset({ name: '', description: '', is_active: true });
     setShowDialog(true);
   };
 
   const handleOpenEdit = (method) => {
     setEditingMethod(method);
-    setFormData({
+    form.reset({
       name: method.name,
       description: method.description || '',
       is_active: method.is_active
@@ -87,16 +88,7 @@ const PaymentMethods = () => {
     setShowDeleteDialog(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    if (!formData.name.trim()) {
-      toast.error('El nombre es requerido');
-      return;
-    }
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       if (editingMethod) {
         await api.put(`/payment-methods/${editingMethod.name}`, formData);
@@ -109,10 +101,8 @@ const PaymentMethods = () => {
       fetchPaymentMethods();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async () => {
     try {
@@ -273,47 +263,43 @@ const PaymentMethods = () => {
               {editingMethod ? 'Editar Forma de Pago' : 'Nueva Forma de Pago'}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nombre *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ej: Efectivo, Tarjeta de Crédito"
-                disabled={!!editingMethod}
-                data-testid="input-payment-method-name"
-              />
-              {editingMethod && (
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            {editingMethod ? (
+              <div className="space-y-2">
+                <Label htmlFor="name">Nombre *</Label>
+                <Input id="name" value={editingMethod.name} disabled data-testid="input-payment-method-name" />
                 <p className="text-xs text-muted-foreground">
                   El nombre no se puede modificar
                 </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <TextField form={form} name="name" label="Nombre *" placeholder="Ej: Efectivo, Tarjeta de Crédito"
+                         data-testid="input-payment-method-name" />
+            )}
             <div className="space-y-2">
               <Label htmlFor="description">Descripción</Label>
               <Textarea
                 id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                {...form.register('description')}
                 placeholder="Descripción opcional"
                 rows={2}
                 data-testid="input-payment-method-description"
               />
+              <FieldError error={form.errors.description} id="description-error" />
             </div>
             <div className="flex items-center justify-between">
               <Label htmlFor="is_active">Estado</Label>
               <div className="flex items-center gap-2">
-                <span className={`text-sm ${!formData.is_active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span className={`text-sm ${!isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
                   Inactivo
                 </span>
                 <Switch
                   id="is_active"
-                  checked={formData.is_active}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                  checked={!!isActive}
+                  onCheckedChange={(checked) => form.setValue('is_active', checked)}
                   data-testid="switch-payment-method-status"
                 />
-                <span className={`text-sm ${formData.is_active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                <span className={`text-sm ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>
                   Activo
                 </span>
               </div>

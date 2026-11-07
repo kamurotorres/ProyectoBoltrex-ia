@@ -27,6 +27,11 @@ import { Badge } from '@/components/ui/badge';
 import { usePermissions } from '@/hooks/usePermissions';
 import { API, api } from '@/api/client';
 import { AuthContext } from '@/auth/AuthProvider';
+import { useZodForm } from '@/hooks/useZodForm';
+import { TextField } from '@/components/form/Field';
+import { userCreateSchema, userEditSchema } from '@/lib/schemas';
+
+const EMPTY = { email: '', password: '', first_name: '', last_name: '', phone: '', is_active: true };
 
 const UsersManagement = () => {
   const { canCreate, canUpdate } = usePermissions();
@@ -35,21 +40,15 @@ const UsersManagement = () => {
   const list = usePaginatedList(`${API}/rbac/users`, { errorMessage: 'Error al cargar usuarios' });
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedUserRoles, setSelectedUserRoles] = useState([]);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    phone: '',
-    is_active: true
-  });
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo). Al editar, la contraseña es opcional.
+  const form = useZodForm(editMode ? userEditSchema : userCreateSchema, EMPTY);
+  const isSubmitting = form.submitting;
 
   useEffect(() => {
     fetchData();
@@ -69,11 +68,7 @@ const UsersManagement = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       if (editMode) {
         await api.put(`/rbac/users/${currentUser.email}`, formData);
@@ -86,16 +81,14 @@ const UsersManagement = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar usuario'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleOpenDialog = (user = null) => {
     if (user) {
       setEditMode(true);
       setCurrentUser(user);
-      setFormData({
+      form.reset({
         email: user.email,
         password: '',
         first_name: user.first_name,
@@ -106,14 +99,7 @@ const UsersManagement = () => {
     } else {
       setEditMode(false);
       setCurrentUser(null);
-      setFormData({
-        email: '',
-        password: '',
-        first_name: '',
-        last_name: '',
-        phone: '',
-        is_active: true
-      });
+      form.reset(EMPTY);
     }
     setDialogOpen(true);
   };
@@ -190,72 +176,34 @@ const UsersManagement = () => {
                 {editMode ? 'Modifica los datos del usuario' : 'Crea un nuevo usuario en el sistema'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
+                  <TextField form={form} name="first_name" label="Nombres *" data-testid="user-first-name-input" />
+                  <TextField form={form} name="last_name" label="Apellidos *" data-testid="user-last-name-input" />
+                </div>
+
+                {/* En edición el correo no se cambia (igual que antes): solo se muestra. */}
+                {editMode ? (
                   <div className="space-y-2">
-                    <Label htmlFor="first_name">Nombres *</Label>
-                    <Input
-                      id="first_name"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      required
-                      data-testid="user-first-name-input"
-                    />
+                    <Label htmlFor="email">Email *</Label>
+                    <Input id="email" type="email" value={currentUser?.email || ''} disabled data-testid="user-email-input" />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last_name">Apellidos *</Label>
-                    <Input
-                      id="last_name"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      required
-                      data-testid="user-last-name-input"
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <TextField form={form} name="email" label="Email *" type="email" data-testid="user-email-input" />
+                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                    disabled={editMode}
-                    data-testid="user-email-input"
-                  />
-                </div>
+                <TextField form={form} name="password" type="password" autoComplete="new-password"
+                           label={editMode ? 'Nueva Contraseña (opcional)' : 'Contraseña *'}
+                           hint="Mínimo 8 caracteres; no se aceptan contraseñas obvias." data-testid="user-password-input" />
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">{editMode ? 'Nueva Contraseña (opcional)' : 'Contraseña *'}</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required={!editMode}
-                    data-testid="user-password-input"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Teléfono</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    data-testid="user-phone-input"
-                  />
-                </div>
+                <TextField form={form} name="phone" label="Teléfono" data-testid="user-phone-input" />
 
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     id="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    {...form.register('is_active')}
                     data-testid="user-active-checkbox"
                   />
                   <Label htmlFor="is_active">Usuario Activo</Label>

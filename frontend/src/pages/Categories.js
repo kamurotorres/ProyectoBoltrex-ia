@@ -19,6 +19,11 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { useZodForm } from '@/hooks/useZodForm';
+import { TextField } from '@/components/form/Field';
+import { categorySchema } from '@/lib/schemas';
+
+const EMPTY = { name: '', description: '' };
 
 const Categories = () => {
   const { canCreate, canUpdate, canDelete } = usePermissions();
@@ -26,11 +31,11 @@ const Categories = () => {
   // P1.18: paginadas y buscadas en el servidor (paginated=true; sin él, la lista completa para selectores).
   const list = usePaginatedList(`${API}/categories`, { params: { paginated: true }, errorMessage: 'Error al cargar categorías' });
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(null);
-  const [formData, setFormData] = useState({ name: '', description: '' });
+  // fase 6: formulario con react-hook-form + zod (errores debajo de cada campo).
+  const form = useZodForm(categorySchema, EMPTY);
 
   useEffect(() => {
     fetchCategories();
@@ -41,11 +46,7 @@ const Categories = () => {
     setLoading(false);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       if (editMode) {
         await api.put(`/categories/${currentCategory.name}`, formData);
@@ -58,10 +59,9 @@ const Categories = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar categoría'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
+  const isSubmitting = form.submitting;
 
   const handleDelete = async (name) => {
     if (!(await confirm('¿Estás seguro de eliminar esta categoría?', { confirmLabel: 'Eliminar', destructive: true }))) return;
@@ -78,11 +78,11 @@ const Categories = () => {
     if (category) {
       setEditMode(true);
       setCurrentCategory(category);
-      setFormData({ name: category.name, description: category.description || '' });
+      form.reset({ name: category.name, description: category.description || '' });
     } else {
       setEditMode(false);
       setCurrentCategory(null);
-      setFormData({ name: '', description: '' });
+      form.reset(EMPTY);
     }
     setDialogOpen(true);
   };
@@ -91,7 +91,7 @@ const Categories = () => {
     setDialogOpen(false);
     setEditMode(false);
     setCurrentCategory(null);
-    setFormData({ name: '', description: '' });
+    form.reset(EMPTY);
   };
 
   const filteredCategories = list.items;
@@ -121,28 +121,18 @@ const Categories = () => {
                 {editMode ? 'Modifica los datos de la categoría' : 'Crea una nueva categoría de productos'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre</Label>
-                  <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                    disabled={editMode}
-                    data-testid="category-name-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descripción</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    data-testid="category-description-input"
-                  />
-                </div>
+                {/* En edición el nombre no se cambia (igual que antes): solo se muestra. */}
+                {editMode ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nombre</Label>
+                    <Input id="name" value={currentCategory?.name || ''} disabled data-testid="category-name-input" />
+                  </div>
+                ) : (
+                  <TextField form={form} name="name" label="Nombre" data-testid="category-name-input" />
+                )}
+                <TextField form={form} name="description" label="Descripción" data-testid="category-description-input" />
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>

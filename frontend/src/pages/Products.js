@@ -8,9 +8,24 @@ import { usePaginatedList } from '@/hooks/usePaginatedList';
 import Pagination from '@/components/Pagination';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
-import pricingProblem, { DEFAULT_PRICE_LIST } from '@/features/products/pricing';
+import { DEFAULT_PRICE_LIST } from '@/features/products/pricing';
+import { useZodForm } from '@/hooks/useZodForm';
+import { productSchema } from '@/lib/schemas';
 import ProductDialog from '@/features/products/ProductDialog';
 import ProductsTable from '@/features/products/ProductsTable';
+
+const EMPTY = {
+  barcode: '',
+  name: '',
+  description: '',
+  category: '',
+  purchase_price: '',
+  // P1.16: el IVA inicia en 0 y el usuario lo ajusta según el producto.
+  tax_rate: '0',
+  min_stock: '',
+  // P1.17: el precio 'default' es obligatorio: se precarga la fila.
+  prices: [{ price_list_name: DEFAULT_PRICE_LIST, price: '' }],
+};
 
 
 const Products = () => {
@@ -21,20 +36,15 @@ const Products = () => {
   const [categories, setCategories] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [currentProduct, setCurrentProduct] = useState(null);
-  const [formData, setFormData] = useState({
-    barcode: '',
-    name: '',
-    description: '',
-    category: '',
-    purchase_price: '',
-    tax_rate: '0',
-    min_stock: '',
-    prices: [{ price_list_name: DEFAULT_PRICE_LIST, price: '' }]
-  });
+  // fase 6: formulario con react-hook-form + zod; los errores (también los de cada precio) salen debajo
+  // de su campo. Las reglas de precios son las de features/products/pricing.js.
+  const form = useZodForm(productSchema, EMPTY);
+  const isSubmitting = form.submitting;
+  const formData = form.watch();
+  const setPrices = (prices) => form.setValue('prices', prices, { shouldValidate: form.formState.isSubmitted });
 
   useEffect(() => {
     fetchData();
@@ -56,17 +66,7 @@ const Products = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-
-    const problem = pricingProblem(formData);
-    if (problem) {
-      toast.error(problem);
-      return;
-    }
-
-    setIsSubmitting(true);
+  const handleSubmit = form.submit(async (formData) => {
     try {
       const payload = {
         ...formData,
@@ -93,10 +93,8 @@ const Products = () => {
       handleCloseDialog();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al guardar producto'));
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async (barcode) => {
     if (!(await confirm('¿Estás seguro de eliminar este producto?', { confirmLabel: 'Eliminar', destructive: true }))) return;
@@ -131,7 +129,7 @@ const Products = () => {
     if (product) {
       setEditMode(true);
       setCurrentProduct(product);
-      setFormData({
+      form.reset({
         barcode: product.barcode,
         name: product.name,
         description: product.description || '',
@@ -144,18 +142,7 @@ const Products = () => {
     } else {
       setEditMode(false);
       setCurrentProduct(null);
-      setFormData({
-        barcode: '',
-        name: '',
-        description: '',
-        category: '',
-        purchase_price: '',
-        // P1.16: el IVA inicia en 0 y el usuario lo ajusta según el producto.
-        tax_rate: '0',
-        min_stock: '',
-        // P1.17: el precio 'default' es obligatorio: se precarga la fila.
-        prices: [{ price_list_name: DEFAULT_PRICE_LIST, price: '' }]
-      });
+      form.reset(EMPTY);
     }
     setDialogOpen(true);
   };
@@ -179,10 +166,7 @@ const Products = () => {
       return;
     }
     // La nueva fila ya trae la primera lista libre: nunca nace repetida ni vacía.
-    setFormData({
-      ...formData,
-      prices: [...formData.prices, { price_list_name: availableLists[0].name, price: '' }]
-    });
+    setPrices([...formData.prices, { price_list_name: availableLists[0].name, price: '' }]);
   };
 
   const handleRemovePrice = (index) => {
@@ -190,15 +174,12 @@ const Products = () => {
       toast.error("El precio de la lista 'default' es obligatorio: no se puede quitar.");
       return;
     }
-    setFormData({
-      ...formData,
-      prices: formData.prices.filter((_, i) => i !== index)
-    });
+    setPrices(formData.prices.filter((_, i) => i !== index));
   };
 
   const handlePriceChange = (index, field, value) => {
     const newPrices = formData.prices.map((p, i) => (i === index ? { ...p, [field]: value } : p));
-    setFormData({ ...formData, prices: newPrices });
+    setPrices(newPrices);
   };
 
   const filteredProducts = list.items;
@@ -213,7 +194,7 @@ const Products = () => {
           <p className="text-muted-foreground mt-2">Gestiona tu catálogo de productos</p>
         </div>
         {canCreate('products') && (
-          <ProductDialog activeLists={activeLists} availableLists={availableLists} categories={categories} dialogOpen={dialogOpen} editMode={editMode} formData={formData} handleAddPrice={handleAddPrice} handleCloseDialog={handleCloseDialog} handleOpenDialog={handleOpenDialog} handlePriceChange={handlePriceChange} handleRemovePrice={handleRemovePrice} handleSubmit={handleSubmit} isInactiveList={isInactiveList} isSubmitting={isSubmitting} priceLists={priceLists} setDialogOpen={setDialogOpen} setFormData={setFormData} />
+          <ProductDialog activeLists={activeLists} availableLists={availableLists} categories={categories} dialogOpen={dialogOpen} editMode={editMode} formData={formData} handleAddPrice={handleAddPrice} handleCloseDialog={handleCloseDialog} handleOpenDialog={handleOpenDialog} handlePriceChange={handlePriceChange} handleRemovePrice={handleRemovePrice} handleSubmit={handleSubmit} isInactiveList={isInactiveList} isSubmitting={isSubmitting} priceLists={priceLists} setDialogOpen={setDialogOpen} form={form} />
         )}
       </div>
 
