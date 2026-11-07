@@ -17,7 +17,8 @@ import {
   UserCog,
   Shield,
   LogOut,
-  KeyRound,
+  Ticket,
+  ChevronDown,
   ScrollText,
   Banknote,
   Receipt,
@@ -30,7 +31,8 @@ import {
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { allowedSections, findSection, isReadOnly } from '@/lib/access';
+import { findSection, isReadOnly, menuGroups } from '@/lib/access';
+import UserMenu, { displayName, rolesText } from '@/components/UserMenu';
 import BoltrexLogo from '@/components/BoltrexLogo';
 import AlertsBell from '@/components/AlertsBell';
 import { AuthContext } from '@/auth/AuthProvider';
@@ -39,8 +41,13 @@ import { useConfirm } from '@/components/ConfirmDialog';
 const ICONS = {
   LayoutDashboard, Package, FolderOpen, Users, Truck, ShoppingBag, RotateCcw, ShoppingCart, Receipt,
   Wallet, Warehouse, FileText, Upload, CreditCard, DollarSign, UserCog, Shield, Settings, ScrollText, Banknote,
-  SlidersHorizontal,
+  SlidersHorizontal, Ticket,
 };
+
+// «Configuración» plegada o abierta: preferencia de cada usuario en este navegador (si no se puede guardar, no pasa nada).
+const CONFIG_OPEN_KEY = 'boltrex.menu.configOpen';
+const readConfigOpen = () => { try { return localStorage.getItem(CONFIG_OPEN_KEY) === '1'; } catch { return false; } };
+const saveConfigOpen = (open) => { try { localStorage.setItem(CONFIG_OPEN_KEY, open ? '1' : '0'); } catch { /* sin almacenamiento */ } };
 
 const Layout = () => {
   const { user, logout, logoutAll } = useContext(AuthContext);
@@ -68,11 +75,12 @@ const Layout = () => {
     }
   };
 
-  // Menú = secciones que el usuario puede ver, del mapa único lib/access.js (P1.13).
-  const navItems = allowedSections(user).map((section) => ({
-    ...section,
-    icon: ICONS[section.icon] || Settings,
-  }));
+  // Menú = secciones que el usuario puede ver, del mapa único lib/access.js (P1.13), por grupos (menu-por-grupos).
+  const groups = menuGroups(user);
+  const [configOpen, setConfigOpen] = useState(readConfigOpen);
+  const toggleGroup = () => { setConfigOpen((open) => { saveConfigOpen(!open); return !open; }); };
+  const currentSection = findSection(location.pathname.split('/').slice(0, 2).join('/') || '/');
+  const goChangePassword = () => { setSidebarOpen(false); navigate('/change-password'); };
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -108,7 +116,7 @@ const Layout = () => {
         <div className="flex items-center gap-3">
           {/* P2.34: alertas de stock y créditos */}
           {user && <AlertsBell user={user} />}
-          <span className="text-xs text-muted-foreground hidden md:inline font-mono">{user?.email}</span>
+          {user && <UserMenu user={user} onChangePassword={goChangePassword} onLogoutAll={handleLogoutAll} onLogout={handleLogout} />}
         </div>
       </header>
 
@@ -140,69 +148,66 @@ const Layout = () => {
           </Button>
         </div>
 
-        {/* User Info & Logout Button at the TOP, right below program name */}
-        <div className="p-3 border-b border-border bg-muted/40">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold truncate text-foreground" data-testid="user-email">
-                {user?.email}
-              </p>
-              <p className="text-[10px] text-muted-foreground capitalize truncate">
-                {user?.roles && user.roles.length > 0 ? user.roles.join(', ') : (user?.role || 'Usuario')}
-              </p>
-              <button
-                type="button"
-                onClick={handleLogoutAll}
-                className="text-[10px] text-muted-foreground hover:text-destructive hover:underline"
-                data-testid="logout-all-button"
-                title="Cerrar la sesión en todos los equipos donde hayas entrado"
-              >
-                Cerrar sesión en todos los equipos
-              </button>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setSidebarOpen(false); navigate('/change-password'); }}
-              className="h-8 px-2 text-xs flex items-center gap-1 shrink-0"
-              data-testid="change-password-button"
-              title="Cambiar mi contraseña"
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-              <span>Contraseña</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="h-8 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive flex items-center gap-1 shrink-0"
-              data-testid="logout-button"
-              title="Cerrar sesión"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span>Salir</span>
-            </Button>
-          </div>
+        {/* Usuario (las opciones de la cuenta están en «Mi cuenta», arriba a la derecha) */}
+        <div className="px-4 py-3 border-b border-border bg-muted/40">
+          <p className="text-xs font-semibold truncate text-foreground" data-testid="sidebar-user-name">{displayName(user)}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{rolesText(user)}</p>
         </div>
 
         {/* Navigation List - Closes sidebar upon clicking any item */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.path === '/'}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `sidebar-nav-item flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? 'active' : ''}`
-              }
-              data-testid={`nav-${item.label.toLowerCase()}`}
-            >
-              <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="flex-1 p-3 overflow-y-auto" data-testid="sidebar-nav">
+          {groups.map((group) => {
+            // Configuración se abre sola si la pantalla actual es de ese grupo.
+            const open = !group.collapsible || configOpen || currentSection?.group === group.key;
+            return (
+              <div key={group.key} className="mb-3" data-testid={`nav-group-${group.key}`}>
+                {group.label && (group.collapsible ? (
+                  <button type="button" onClick={toggleGroup}
+                          className="w-full flex items-center justify-between px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          aria-expanded={open} data-testid={`nav-group-toggle-${group.key}`}>
+                    {group.label}
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? '' : '-rotate-90'}`} />
+                  </button>
+                ) : (
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</p>
+                ))}
+                {open && group.subgroups.map((sub) => (
+                  <div key={sub.label || 'all'} className="space-y-1">
+                    {sub.label && <p className="px-3 pt-1.5 pb-0.5 text-[10px] text-muted-foreground/70">{sub.label}</p>}
+                    {sub.sections.map((item) => {
+                      const Icon = ICONS[item.icon] || Settings;
+                      return (
+                        <NavLink
+                          key={item.path}
+                          to={item.path}
+                          end={item.path === '/'}
+                          onClick={() => setSidebarOpen(false)}
+                          className={({ isActive }) =>
+                            `sidebar-nav-item flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${isActive ? 'active' : ''}`
+                          }
+                          data-testid={`nav-${item.label.toLowerCase()}`}
+                        >
+                          <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+                          <span>{item.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </nav>
+
+        {/* Salir a un toque desde el menú (también está en «Mi cuenta») */}
+        <div className="p-3 border-t border-border">
+          <Button variant="ghost" size="sm" onClick={handleLogout}
+                  className="w-full justify-start text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  data-testid="sidebar-logout-button">
+            <LogOut className="h-4 w-4 mr-2" />
+            Cerrar sesión
+          </Button>
+        </div>
       </aside>
 
       {/* Main Content Area - Full width */}
