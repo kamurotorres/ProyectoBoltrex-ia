@@ -1,14 +1,15 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, CalendarClock, CreditCard, Loader2, Minus, Plus, ShoppingCart, Trash2, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CreditCard, Loader2, ShoppingCart, Trash2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { ymd } from '@/features/pos/usePosState';
 import { money as money0, ymdToDmy as dmy } from '@/lib/format';
+import QuantityStepper from '@/components/commerce/QuantityStepper';
 
-// Extraído de POS.js (mantenimiento fase 5) sin cambios en el JSX.
+// Extraído de POS.js (mantenimiento fase 5). La cantidad usa components/commerce/QuantityStepper (compartido con Compras).
 export default function CartSection({ canCreate, cart, cashState, creditStatus, dueDate, handleCheckout, isProcessing, paymentMethods, paymentStatus, removeFromCart, selectedClient, selectedPaymentMethod, setCart, setDueDate, setPaymentStatus, setQuantity, setSelectedPaymentMethod, totals, updateQuantity }) {
   return (
     <Card className="w-full">
@@ -57,45 +58,19 @@ export default function CartSection({ canCreate, cart, cashState, creditStatus, 
                         {money0(item.unit_price)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(item.barcode, -1)}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <input
-                            type="number"
-                            min="1"
-                            className="w-16 text-center font-mono font-bold bg-transparent border rounded-md h-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.quantity}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === '') {
-                                setCart(cart.map(ci => ci.barcode === item.barcode ? { ...ci, quantity: '' } : ci));
-                              } else {
-                                setQuantity(item.barcode, val);
-                              }
-                            }}
-                            onBlur={(e) => {
-                              if (!e.target.value || parseInt(e.target.value) <= 0) {
-                                setQuantity(item.barcode, 1);
-                              }
-                            }}
-                            data-testid={`cart-quantity-input-${item.barcode}`}
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => updateQuantity(item.barcode, 1)}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <QuantityStepper
+                          value={item.quantity}
+                          onStep={(delta) => updateQuantity(item.barcode, delta)}
+                          onType={(val) => {
+                            if (val === '') {
+                              setCart(cart.map(ci => ci.barcode === item.barcode ? { ...ci, quantity: '' } : ci));
+                            } else {
+                              setQuantity(item.barcode, val);
+                            }
+                          }}
+                          onBlurEmpty={() => setQuantity(item.barcode, 1)}
+                          testId={`cart-quantity-input-${item.barcode}`}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right font-mono">
                         {money0(item.subtotal)}

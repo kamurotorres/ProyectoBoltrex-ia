@@ -228,7 +228,7 @@ async def get_products(search: Optional[str] = None, barcode: Optional[str] = No
 async def get_product(barcode: str, current_user: User = Depends(require_any_permission(("products", "read"), ("pos", "read"), ("purchases", "read"), ("inventory", "read")))):
     product = await db.products.find_one({"barcode": barcode}, {"_id": 0})
     if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
     if isinstance(product.get('created_at'), str):
         product['created_at'] = as_datetime(product['created_at'])
     return Product(**product)

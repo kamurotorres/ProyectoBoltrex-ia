@@ -10,6 +10,7 @@ from models.entities import PurchaseCreate, PurchaseUpdate
 
 from core import audit
 from core.money import money
+from core.purchasing import cost_changes, price_warnings
 
 
 
@@ -86,6 +87,16 @@ async def confirm_purchase(purchase_number: str, current_user: User):
             raise BusinessError("Esta compra ya está confirmada")
 
         now = now_utc()
+        # Costo de cada producto = el de la compra (core/purchasing: costo 0 no cambia nada).
+        barcodes = list({i["barcode"] for i in purchase["items"]})
+        products = {p["barcode"]: p async for p in db.products.find(
+            {"barcode": {"$in": barcodes}}, {"_id": 0, "barcode": 1, "name": 1, "purchase_price": 1, "prices": 1}, session=session)}
+        changes = cost_changes(purchase["items"], products)
+        for c in changes:
+            await products_repo.set_purchase_price(c["barcode"], c["new_cost"], session=session)
+        result_info["cost_changes"] = changes
+        result_info["price_warnings"] = price_warnings(changes, products)
+
         for item in purchase["items"]:
             await products_repo.add_stock(item["barcode"], item["quantity"], session=session)
             await products_repo.record_movement(barcode=item["barcode"], product_name=item["product_name"], movement_type="purchase",
@@ -93,17 +104,22 @@ async def confirm_purchase(purchase_number: str, current_user: User):
                                                 created_by=current_user.email, created_at=now, session=session)
 
         units = sum(i["quantity"] for i in purchase["items"])
+        costs = (f"; costo actualizado en {len(changes)} producto(s): "
+                 + ", ".join(f"{c['name']} {money(c['old_cost'])} → {money(c['new_cost'])}" for c in changes[:5])
+                 + (f" y {len(changes) - 5} más" if len(changes) > 5 else "")) if changes else ""
         await audit.record("purchases", "confirm", entity_id=purchase_number, entity_name=purchase.get("supplier_name"),
                            summary=f"Confirmó la compra {purchase_number}: entraron {units} unidad(es) de "
-                                   f"{len(purchase['items'])} producto(s) al inventario",
+                                   f"{len(purchase['items'])} producto(s) al inventario{costs}",
                            details={"items": [{"barcode": i["barcode"], "product_name": i["product_name"],
                                                "quantity": i["quantity"]} for i in purchase["items"]],
-                                    "total": purchase.get("total")},
+                                    "total": purchase.get("total"), "cost_changes": changes},
                            session=session)
 
+    result_info: dict = {}
     await run_in_transaction(_confirm)
 
     updated = await db.purchases.find_one({"purchase_number": purchase_number}, {"_id": 0})
     if isinstance(updated.get('created_at'), str):
         updated['created_at'] = as_datetime(updated['created_at'])
-    return updated
+    # cost_changes / price_warnings: para que la pantalla avise qué costos cambiaron y qué precios revisar.
+    return {**updated, "cost_changes": result_info.get("cost_changes", []), "price_warnings": result_info.get("price_warnings", [])}

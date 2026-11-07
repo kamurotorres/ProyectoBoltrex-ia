@@ -39,22 +39,30 @@ console.error = (...a) => { const m = String(a[0] || ''); if (/not wrapped in ac
 // ---------------------------------------------------------------- API, avisos y permisos simulados
 const calls = [];          // { method, url, data }
 const toasts = [];         // { kind, message }
-let fixtures = {};         // url → data para GET
-const respond = (url) => {
-  const key = Object.keys(fixtures).find((k) => url.endsWith(k));
-  return { data: key ? JSON.parse(JSON.stringify(fixtures[key])) : { items: [], total: 0, page: 1, pages: 1 } };
+let fixtures = {};         // url → data para GET (o función (params) → data)
+let postFixtures = {};     // url → data que devuelve el POST
+const respond = (url, params) => {
+  const key = Object.keys(fixtures).sort((a, b) => b.length - a.length).find((k) => url.endsWith(k));
+  if (!key) return { data: { items: [], total: 0, page: 1, pages: 1 } };
+  const value = typeof fixtures[key] === 'function' ? fixtures[key](params || {}) : fixtures[key];
+  if (value instanceof Error) throw value;
+  return { data: JSON.parse(JSON.stringify(value)) };
 };
 const apiMock = {
   API: '/api',
   api: {
-    get: async (url) => respond(url),
-    post: async (url, data) => { calls.push({ method: 'post', url, data }); return { data: {} }; },
+    get: async (url, config) => respond(url, config && config.params),
+    post: async (url, data) => {
+      calls.push({ method: 'post', url, data });
+      const key = Object.keys(postFixtures).find((k) => url.endsWith(k));
+      return { data: key ? JSON.parse(JSON.stringify(postFixtures[key])) : {} };
+    },
     put: async (url, data) => { calls.push({ method: 'put', url, data }); return { data: {} }; },
     delete: async (url) => { calls.push({ method: 'delete', url }); return { data: {} }; },
   },
   setAuthToken() {}, clearAuthToken() {},
 };
-const axiosMock = { get: async (url) => respond(url), post: apiMock.api.post, put: apiMock.api.put, delete: apiMock.api.delete,
+const axiosMock = { get: async (url, config) => respond(url, config && config.params), post: apiMock.api.post, put: apiMock.api.put, delete: apiMock.api.delete,
   isAxiosError: () => false, defaults: { headers: { common: {} } } };
 axiosMock.default = axiosMock;
 const toastFn = (m) => toasts.push({ kind: 'info', message: m });
@@ -128,14 +136,28 @@ async function type(el, value) {
 const errorText = (id) => { const el = document.getElementById(id); return el ? el.textContent : null; };
 
 let root = null;
-async function mount(Component, data = {}) {
-  fixtures = data; calls.length = 0; toasts.length = 0;
+const RR = req('react-router-dom');
+// route = { path: '/purchases/:purchaseNumber', url: '/purchases/PUR-000001' } para páginas con parámetros.
+// Cualquier navegación fuera de esa ruta muestra <div data-testid="navigated-to" data-path="…">.
+const Where = () => { const loc = RR.useLocation(); return React.createElement('div', { 'data-testid': 'navigated-to', 'data-path': loc.pathname }); };
+async function mount(Component, data = {}, route = { path: '/', url: '/' }, posts = {}) {
+  fixtures = data; postFixtures = posts; calls.length = 0; toasts.length = 0;
   if (root) await act(async () => root.unmount());
   document.body.innerHTML = '<div id="root"></div>';
   root = createRoot(document.getElementById('root'));
-  await act(async () => root.render(React.createElement(Component)));
+  const tree = React.createElement(RR.MemoryRouter, { initialEntries: [route.url] },
+    React.createElement(RR.Routes, null,
+      React.createElement(RR.Route, { path: route.path, element: React.createElement(Component) }),
+      React.createElement(RR.Route, { path: '*', element: React.createElement(Where) })));
+  await act(async () => root.render(tree));
   await settle(400);   // listas paginadas: espera de búsqueda (300 ms) + respuesta
 }
+const navigatedTo = () => { const el = byTestId('navigated-to'); return el ? el.getAttribute('data-path') : null; };
+async function pressEnter(el) {
+  await act(async () => { el.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+  await settle(30);
+}
+const stepper = (testId, sign) => { const input = must(byTestId(testId), testId); return sign > 0 ? input.nextElementSibling : input.previousElementSibling; };
 const reset = () => { calls.length = 0; toasts.length = 0; };
 
 let ok = 0; let fail = 0;
@@ -247,11 +269,93 @@ scenario('Clientes: plazo decimal → error debajo; corregido → PUT igual que 
   }), 'cliente: PUT con el formato de antes', JSON.stringify(calls));
 });
 
-scenario('Compras: cantidad vacía → error en la fila; corregida → PUT igual que antes', async () => {
-  const purchase = { purchase_number: 'COM-000001', supplier_name: 'Postobón', status: 'borrador', total: 2000, created_at: '2026-11-01T10:00:00Z',
-    items: [{ barcode: '770123', product_name: 'Gaseosa', quantity: 2, unit_cost: 1000, total: 2000 }] };
-  await mount(page('pages/Purchases.js'), { '/purchases': { items: [purchase], total: 1, page: 1, pages: 1 } });
-  await click(must(byTestId('edit-purchase-0'), 'botón editar compra'));
+const GAS = { barcode: '770123', name: 'Gaseosa', purchase_price: 1200, stock: 8, prices: [{ price_list_name: 'default', price: 1500 }] };
+const PAN = { barcode: '770999', name: 'Pan', purchase_price: 500, stock: 0, prices: [{ price_list_name: 'default', price: 800 }] };
+const page1 = (items) => ({ items, total: items.length, page: 1, pages: 1 });
+const PURCHASE_FIXTURES = {
+  '/suppliers': (params) => page1(params.search ? [{ name: 'Postobón', contact_name: 'Juan Pérez', phone: '300 111 2233' }] : []),
+  '/products': (params) => page1(params.barcode ? [GAS, PAN].filter((p) => p.barcode === params.barcode)
+    : params.search ? [GAS, PAN].filter((p) => `${p.name} ${p.barcode}`.toLowerCase().includes(params.search.toLowerCase())) : []),
+};
+const EDITOR = { path: '/purchases/nueva', url: '/purchases/nueva' };
+
+scenario('Compras (página nueva): proveedor, lector con Enter, − / +, costo antes/ahora, stock → POST igual que antes', async () => {
+  await mount(page('pages/PurchaseEditor.js'), PURCHASE_FIXTURES, EDITOR, { '/purchases': { purchase_number: 'PUR-000010' } });
+  check(!byTestId('save-purchase-button'), 'compra nueva: sin productos no hay botones de guardar');
+  await type(must(byTestId('supplier-search-input'), 'buscador de proveedor'), 'Pos');
+  await settle(400);
+  await click(must(byTestId('purchase-supplier-0'), 'proveedor encontrado'));
+  check(document.body.textContent.includes('Juan Pérez') && byTestId('supplier-search-input') === null, 'compra: proveedor elegido (tarjeta verde con contacto)');
+  const search = must(byTestId('product-search-input'), 'buscador de productos');
+  await type(search, '770123');
+  await pressEnter(search);
+  await settle(50);
+  check(byTestId('purchase-item-0') && byTestId('item-quantity-770123').value === '1', 'lector: Enter con el código agrega 1 unidad');
+  check(search.value === '', 'lector: el buscador queda vacío para el siguiente');
+  await type(search, '770123');
+  await pressEnter(search);
+  await settle(50);
+  check(byTestId('item-quantity-770123').value === '2', 'lector: el mismo código otra vez suma 1');
+  await type(search, '77012');
+  await pressEnter(search);
+  await settle(50);
+  check(lastToastError() === 'No hay un producto con el código «77012».' && !byTestId('purchase-item-1'),
+    'lector: un código parcial NO agrega otro producto', lastToastError());
+  await type(search, 'Pan');
+  await settle(400);
+  check(document.body.textContent.includes('Costo actual · Stock: 0'), 'búsqueda: muestra costo actual y stock');
+  await click(must(byTestId('purchase-product-0'), 'producto Pan en la lista'));
+  await click(stepper('item-quantity-770999', +1));
+  check(byTestId('item-quantity-770999').value === '2', 'compra: botón + suma');
+  await click(stepper('item-quantity-770999', -1));
+  await click(stepper('item-quantity-770999', -1));
+  check(byTestId('item-quantity-770999').value === '1', 'compra: botón − no baja de 1');
+  await click(stepper('item-quantity-770999', +1));
+  await type(byTestId('item-cost-770123'), '1300');
+  check((byTestId('cost-change-770123') || {}).textContent === 'antes $1.200', 'compra: costo nuevo vs. antes', (byTestId('cost-change-770123') || {}).textContent);
+  check(byTestId('item-stock-770123').textContent === '8 → 10', 'compra: stock actual → después', byTestId('item-stock-770123').textContent);
+  check(byTestId('purchase-total').textContent === '$3.600' && byTestId('purchase-units').textContent === '2 / 4', 'compra: total y unidades',
+    `${byTestId('purchase-total').textContent} ${byTestId('purchase-units').textContent}`);
+  await click(byTestId('save-purchase-button'));
+  await settle(50);
+  check(calls.length === 1 && calls[0].method === 'post' && calls[0].url === '/purchases' && same(calls[0].data, {
+    supplier_name: 'Postobón', items: [{ barcode: '770123', product_name: 'Gaseosa', quantity: 2, unit_cost: 1300, total: 2600 },
+      { barcode: '770999', product_name: 'Pan', quantity: 2, unit_cost: 500, total: 1000 }],
+  }), 'compra: POST /purchases con el formato de antes', JSON.stringify(calls));
+  check(navigatedTo() === '/purchases', 'compra: al guardar vuelve al listado', navigatedTo());
+});
+
+scenario('Compras: «Guardar y procesar» → guarda, procesa y avisa costos y precios bajo el costo', async () => {
+  await mount(page('pages/PurchaseEditor.js'), PURCHASE_FIXTURES, EDITOR, {
+    '/purchases': { purchase_number: 'PUR-000009' },
+    '/purchases/PUR-000009/confirm': { cost_changes: [{ barcode: '770123', name: 'Gaseosa', old_cost: 1200, new_cost: 1600 }],
+      price_warnings: [{ barcode: '770123', name: 'Gaseosa', new_cost: 1600, prices: [{ price_list_name: 'default', price: 1500 }] }] },
+  });
+  await type(byTestId('supplier-search-input'), 'Pos');
+  await settle(400);
+  await click(byTestId('purchase-supplier-0'));
+  await type(byTestId('product-search-input'), '770123');
+  await pressEnter(byTestId('product-search-input'));
+  await settle(50);
+  await type(byTestId('item-cost-770123'), '1600');
+  await click(byTestId('save-and-process-purchase-button'));
+  await settle(80);
+  check(calls.map((c) => `${c.method} ${c.url}`).join(' | ') === 'post /purchases | post /purchases/PUR-000009/confirm',
+    'guardar y procesar: crea el borrador y lo procesa', JSON.stringify(calls));
+  const msgs = toasts.map((t) => `${t.kind}: ${t.message}`).join('\n');
+  check(msgs.includes('success: Compra PUR-000009 procesada: inventario actualizado'), 'procesar: aviso de éxito', msgs);
+  check(msgs.includes('Costo actualizado: Gaseosa $1.200 → $1.600'), 'procesar: avisa el costo actualizado', msgs);
+  check(msgs.includes('Precio de venta por debajo del costo nuevo: Gaseosa (costo $1.600; default $1.500)'), 'procesar: avisa el precio a revisar', msgs);
+  check(navigatedTo() === '/purchases', 'procesar: vuelve al listado');
+});
+
+scenario('Compras: editar borrador → error en la fila; corregido → PUT igual que antes; confirmada = solo lectura', async () => {
+  const purchase = { purchase_number: 'COM-000001', supplier_name: 'Postobón', status: 'borrador', total: 2000, created_by: 'admin@boltrex.com',
+    created_at: '2026-11-01T10:00:00Z', items: [{ barcode: '770123', product_name: 'Gaseosa', quantity: 2, unit_cost: 1000, total: 2000 }] };
+  await mount(page('pages/PurchaseEditor.js'), { ...PURCHASE_FIXTURES, '/purchases/COM-000001': purchase, '/products/770123': GAS },
+    { path: '/purchases/:purchaseNumber', url: '/purchases/COM-000001' });
+  check(byTestId('item-stock-770123').textContent === '8 → 10' && (byTestId('cost-change-770123') || {}).textContent === 'antes $1.200',
+    'editar: trae stock y costo actuales del producto');
   await type(must(byTestId('item-cost-770123'), 'costo de la fila'), '-5');
   await click(byTestId('save-purchase-button'));
   check(errorText('item-error-770123') === 'El costo unitario debe ser un número de 0 o más.', 'compra: error debajo de la fila', `→ ${errorText('item-error-770123')}`);
@@ -260,14 +364,49 @@ scenario('Compras: cantidad vacía → error en la fila; corregida → PUT igual
   check(errorText('item-error-770123') === null, 'compra: al corregir, el error desaparece');
   await type(byTestId('item-quantity-770123'), '3');
   await click(byTestId('save-purchase-button'));
+  await settle(50);
   check(calls.length === 1 && calls[0].method === 'put' && calls[0].url === '/purchases/COM-000001' && same(calls[0].data, {
     supplier_name: 'Postobón', items: [{ barcode: '770123', product_name: 'Gaseosa', quantity: 3, unit_cost: 1100, total: 3300 }],
   }), 'compra: PUT con el formato de antes', JSON.stringify(calls));
-  // Al guardar, el diálogo se cierra. Se vuelve a abrir y se quita el proveedor: Guardar queda deshabilitado (igual que antes).
-  check(!byTestId('purchase-dialog'), 'compra: al guardar se cierra el diálogo');
-  await click(byTestId('edit-purchase-0'));
-  await click(must([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cambiar'), 'botón Cambiar proveedor'));
-  check(byTestId('save-purchase-button').disabled, 'compra: sin proveedor el botón Guardar queda deshabilitado (como antes)');
+
+  await mount(page('pages/PurchaseEditor.js'), { ...PURCHASE_FIXTURES, '/purchases/COM-000001': purchase, '/products/770123': GAS },
+    { path: '/purchases/:purchaseNumber', url: '/purchases/COM-000001' });
+  await click(must([...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Cambiar Proveedor'), 'botón Cambiar Proveedor'));
+  check(byTestId('save-purchase-button').disabled && byTestId('save-and-process-purchase-button').disabled,
+    'compra: sin proveedor los botones de guardar quedan deshabilitados (como antes)');
+
+  await mount(page('pages/PurchaseEditor.js'), { '/purchases/COM-000001': { ...purchase, status: 'confirmado' }, '/products/770123': GAS },
+    { path: '/purchases/:purchaseNumber', url: '/purchases/COM-000001' });
+  check(!byTestId('product-search-input') && !byTestId('save-purchase-button') && !byTestId('item-cost-770123')
+    && document.body.textContent.includes('Compra COM-000001'), 'compra confirmada: solo lectura');
+});
+
+scenario('POS: lector con Enter agrega al carrito; el código parcial no; − / + con el stock del producto', async () => {
+  const client = { document_type: 'CC', document_number: '123', first_name: 'Ana', last_name: 'Ruiz', price_list: 'default' };
+  await mount(page('pages/POS.js'), {
+    '/payment-methods/active': [{ name: 'Efectivo' }], '/cash/settings': { require_open_session: false }, '/cash/current': { session: null },
+    '/clients': (params) => page1(params.search ? [client] : []),
+    '/credit/client-status': { balance: 0, overdue_balance: 0, term_days: 7 },
+    '/products': PURCHASE_FIXTURES['/products'],
+  }, { path: '/', url: '/' });
+  await type(must(byTestId('pos-search-client-input'), 'buscador de clientes'), 'Ana');
+  await settle(400);
+  await click(must(byTestId('pos-client-0'), 'cliente encontrado'));
+  const search = must(byTestId('pos-search-product-input'), 'buscador de productos del POS');
+  await type(search, '770123');
+  await pressEnter(search);
+  await settle(50);
+  check(byTestId('cart-item-0') && byTestId('cart-quantity-input-770123').value === '1' && search.value === '', 'POS lector: Enter agrega 1 y limpia el buscador');
+  await type(search, '770123');
+  await pressEnter(search);
+  await settle(50);
+  check(byTestId('cart-quantity-input-770123').value === '2', 'POS lector: el mismo código suma 1');
+  await type(search, '7701');
+  await pressEnter(search);
+  await settle(50);
+  check(lastToastError() === 'No hay un producto con el código «7701».' && !byTestId('cart-item-1'), 'POS lector: código parcial no agrega nada');
+  await click(stepper('cart-quantity-input-770123', +1));
+  check(byTestId('cart-quantity-input-770123').value === '3', 'POS: + funciona con el producto escaneado (usa su stock)');
 });
 
 scenario('Tickets: nombre de empresa vacío → error debajo; corregido → PUT igual que antes', async () => {

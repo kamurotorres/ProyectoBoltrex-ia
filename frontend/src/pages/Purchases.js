@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Search } from 'lucide-react';
@@ -11,14 +12,13 @@ import { getErrorMessage } from '@/lib/utils';
 import { notifyDataChanged } from '@/lib/events';
 import { API, api } from '@/api/client';
 import { useConfirm } from '@/components/ConfirmDialog';
-import PurchaseDialog from '@/features/purchases/PurchaseDialog';
-import { usePurchaseForm } from '@/features/purchases/usePurchaseForm';
+import { CONFIRM_QUESTION, notifyConfirmResult } from '@/features/purchases/confirmResult';
 import PurchasesTable from '@/features/purchases/PurchasesTable';
 
 const Purchases = () => {
   const { canCreate, canUpdate } = usePermissions();
   const confirm = useConfirm();   // fase 4: confirmación con el estilo de la app
-  // P1.18: compras paginadas en el servidor; proveedores y productos se buscan en el servidor.
+  // P1.18: compras paginadas en el servidor.
   const [statusFilter, setStatusFilter] = useState('');
   const list = usePaginatedList(`${API}/purchases`, {
     params: statusFilter ? { status: statusFilter } : {},
@@ -27,15 +27,7 @@ const Purchases = () => {
   const purchases = list.items;
   const [loading, setLoading] = useState(true);
   const [confirmingId, setConfirmingId] = useState(null);
-
-  // Dialog state
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState('create'); // create | edit | readonly
-  const [currentPurchase, setCurrentPurchase] = useState(null);
-
-  // Formulario (proveedor, buscadores y filas): fase 6, react-hook-form + zod en features/purchases/usePurchaseForm.
-  const purchaseForm = usePurchaseForm();
-  const isSubmitting = purchaseForm.form.submitting;
+  const navigate = useNavigate();
 
   useEffect(() => { fetchData(); }, []);
 
@@ -47,61 +39,19 @@ const Purchases = () => {
     }
   };
 
-  // === Dialog open helpers ===
-  const openCreateDialog = () => {
-    setDialogMode('create');
-    setCurrentPurchase(null);
-    purchaseForm.load();
-    setDialogOpen(true);
-  };
+  // Rama compras-estilo-pos: crear, editar y ver se hacen en la página completa (pages/PurchaseEditor.js).
+  const openCreate = () => navigate('/purchases/nueva');
+  const openPurchase = (purchase) => navigate(`/purchases/${encodeURIComponent(purchase.purchase_number)}`);
 
-  const openEditDialog = (purchase) => {
-    setDialogMode('edit');
-    setCurrentPurchase(purchase);
-    purchaseForm.load(purchase);
-    setDialogOpen(true);
-  };
-
-  const openViewDialog = (purchase) => {
-    setDialogMode('readonly');
-    setCurrentPurchase(purchase);
-    purchaseForm.load(purchase);
-    setDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setCurrentPurchase(null);
-  };
-
-  // === Submit (create / edit) ===
-  // Proveedor elegido, al menos un producto y filas válidas: lo valida purchaseSchema (error debajo de cada parte).
-  const handleSubmit = purchaseForm.form.submit(async (values) => {
-    const payload = purchaseForm.toPayload(values);
-    try {
-      if (dialogMode === 'edit') {
-        await api.put(`/purchases/${currentPurchase.purchase_number}`, payload);
-        toast.success('Compra actualizada');
-      } else {
-        await api.post(`/purchases`, payload);
-        toast.success('Compra creada en estado Borrador');
-      }
-      fetchData();
-      handleCloseDialog();
-    } catch (error) {
-      toast.error(getErrorMessage(error, 'Error al guardar compra'));
-    }
-  });
-
-  // === Confirm purchase ===
+  // === Procesar desde el listado (avisa costos cambiados y precios a revisar, decisión 2.A) ===
   const handleConfirm = async (purchaseNumber) => {
     if (confirmingId) return;
-    if (!(await confirm('¿Estás seguro de procesar esta compra?\nEsto actualizará el inventario y no se podrá editar.', { confirmLabel: 'Procesar compra' }))) return;
+    if (!(await confirm(CONFIRM_QUESTION, { confirmLabel: 'Procesar compra' }))) return;
     setConfirmingId(purchaseNumber);
     try {
-      await api.post(`/purchases/${purchaseNumber}/confirm`);
+      const res = await api.post(`/purchases/${purchaseNumber}/confirm`);
       notifyDataChanged();
-      toast.success('Compra confirmada e inventario actualizado');
+      notifyConfirmResult(res.data, purchaseNumber);
       fetchData();
     } catch (error) {
       toast.error(getErrorMessage(error, 'Error al confirmar compra'));
@@ -109,10 +59,6 @@ const Purchases = () => {
       setConfirmingId(null);
     }
   };
-
-  const isReadonly = dialogMode === 'readonly';
-  const dialogTitle = dialogMode === 'create' ? 'Nueva Compra' : dialogMode === 'edit' ? 'Editar Compra' : 'Detalle de Compra';
-  const dialogDesc = dialogMode === 'create' ? 'Se guardará como borrador' : dialogMode === 'edit' ? `Editando ${currentPurchase?.purchase_number}` : `${currentPurchase?.purchase_number} — Confirmada`;
 
   if (loading) return <div className="text-center py-12">Cargando...</div>;
 
@@ -124,17 +70,12 @@ const Purchases = () => {
           <p className="text-muted-foreground mt-2">Registro de compras a proveedores</p>
         </div>
         {canCreate('purchases') && (
-          <Button onClick={openCreateDialog} data-testid="create-purchase-button">
+          <Button onClick={openCreate} data-testid="create-purchase-button">
             <Plus className="h-4 w-4 mr-2" />
             Nueva Compra
           </Button>
         )}
       </div>
-
-      {/* ======= DIALOG ======= */}
-      <PurchaseDialog purchaseForm={purchaseForm} dialogDesc={dialogDesc} dialogMode={dialogMode} dialogOpen={dialogOpen} dialogTitle={dialogTitle}
-                      handleCloseDialog={handleCloseDialog} handleSubmit={handleSubmit} isReadonly={isReadonly} isSubmitting={isSubmitting}
-                      setDialogOpen={setDialogOpen} />
 
       {/* ======= PURCHASES TABLE ======= */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -158,7 +99,7 @@ const Purchases = () => {
         <ExportMenu url={`${API}/purchases/export`} className="ml-auto" fallbackName="compras" testId="export-purchases-button"
                     params={{ ...(statusFilter ? { status: statusFilter } : {}), ...(list.search.trim() ? { search: list.search.trim() } : {}) }} />
       </div>
-      <PurchasesTable canUpdate={canUpdate} confirmingId={confirmingId} handleConfirm={handleConfirm} openEditDialog={openEditDialog} openViewDialog={openViewDialog} purchases={purchases} />
+      <PurchasesTable canUpdate={canUpdate} confirmingId={confirmingId} handleConfirm={handleConfirm} openEditDialog={openPurchase} openViewDialog={openPurchase} purchases={purchases} />
 
       {purchases.length === 0 && !list.loading && (
         <div className="text-center py-12 text-muted-foreground" data-testid="no-purchases">

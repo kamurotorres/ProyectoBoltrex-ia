@@ -122,6 +122,11 @@ class Purchase(BaseModel):
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class PurchaseConfirmed(Purchase):
+    """Respuesta de confirmar una compra: la compra + costos actualizados + precios por debajo del costo nuevo."""
+    cost_changes: List[dict] = []
+    price_warnings: List[dict] = []
+
 class PurchaseCreate(BaseModel):
     supplier_name: str
     items: List[PurchaseItem]
